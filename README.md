@@ -1,5 +1,14 @@
-# TelaSync
+# TelaSync 0.1.0
 
-Gerenciador de monitores para Windows. By Fagner Lemes.
+Primeira versão local do TelaSync, preservada como histórico. **By Fagner Lemes.**
 
-Publicação do código e das versões locais 0.1.0 a 0.1.3. O histórico é importado dos arquivos-fonte preservados; as datas de importação não representam as datas originais de desenvolvimento.
+Prefira a [versão atual 0.1.3](https://github.com/fagnerlemes/TelaSync/releases/tag/v0.1.3), que reúne correções posteriores.
+
+- Mapa e detalhes dos monitores, memória de posição, perfis e atalhos.
+- Instalador por usuário, modo portátil, ícone e assinatura TelaSync.
+
+Baixe **TelaSync-0.1.0-Setup.exe** para instalar ou o ZIP portátil para executar sem instalação. O ZIP fontes contém o código original desta versão. Confira os anexos usando **SHA256SUMS.txt**.
+
+Este é um build histórico. Repouso individual depende do monitor; uma resposta de sucesso não garante que o painel permaneça apagado. A organização requer desktop estendido.
+
+A tag foi importada do arquivo-fonte local preservado. A data de publicação no GitHub não é a data original do desenvolvimento.

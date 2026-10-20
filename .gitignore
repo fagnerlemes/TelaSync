@@ -1,0 +1,19 @@
+# Pacotes e registros locais ficam fora do histórico de código.
+/output/
+/releases/
+/work/
+/tmp/
+/TelaSync 0.1.0/
+/TelaSync 0.1.1/
+/AGENTS.md
+.vs/
+bin/
+obj/
+__pycache__/
+*.pyc
+*.user
+*.suo
+*.log
+# Gerados novamente pelos scripts de compilação.
+/Tela/installer/payload-manifest.json
+/Tela/installer/patch-manifest.json

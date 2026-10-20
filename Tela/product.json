@@ -1,0 +1,7 @@
+{
+  "name": "TelaSync",
+  "version": "0.1.0",
+  "executable": "TelaSync.exe",
+  "appId": "TelaSync",
+  "publisher": "Fagner Lemes"
+}

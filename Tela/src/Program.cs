@@ -1,0 +1,70 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Threading;
+using System.Windows;
+
+[assembly:AssemblyTitle(Tela.ProductInfo.Name)]
+[assembly:AssemblyCompany(Tela.ProductInfo.Publisher)]
+[assembly:AssemblyProduct(Tela.ProductInfo.Name)]
+[assembly:AssemblyInformationalVersion(Tela.ProductInfo.Version)]
+[assembly:AssemblyCopyright("2026 Fagner Lemes")]
+[assembly:AssemblyDescription("Gerenciador de monitores com memória de posição")]
+[assembly:AssemblyVersion(Tela.ProductInfo.AssemblyVersion)]
+[assembly:AssemblyFileVersion(Tela.ProductInfo.AssemblyVersion)]
+namespace Tela {
+ public static class Program {
+  public static string Quote(string path){if(path.IndexOf('"')>=0)throw new ArgumentException("Caminho inválido.");return "\""+path+"\"";}
+  static string Option(string[] args,string name){int index=Array.IndexOf(args,name);return index>=0&&index+1<args.Length?args[index+1]:null;}
+  [STAThread]public static int Main(string[] args) {
+   try {
+    if(args.Length>=2&&args[0]=="--power-worker")return PowerWorker(args[1]);
+    if(args.Length>=2&&args[0]=="--watchdog")return RecoveryGuard.Watch(args[1]);
+    if(args.Length>=2&&args[0]=="--self-test"){Json.Write(args[1],Tests.Run(Path.GetDirectoryName(Path.GetFullPath(args[1]))));return 0;}
+    if(args.Length>=2&&args[0]=="--probe"){
+     var all=Native.Capture(true);Json.Write(args[1],new{Version="0.1.0",ReadOnly=true,Active=all.Active,Connected=all.Bindings.Where(p=>p.Available).GroupBy(p=>p.Key,StringComparer.OrdinalIgnoreCase).Select(g=>new{Key=g.Key,Model=g.First().Name,Active=g.Any(p=>p.Active)}).ToList()});return 0;
+    }
+    if(args.Length>=2&&args[0]=="--validate-current"){
+     var live=Native.Capture(false);var all=Native.Capture(true);var built=Native.Build(live.Active,all.Bindings);int original=Native.Configure(live.Image(),true,false),rebuilt=Native.Configure(built,true,false);
+     Json.Write(args[1],new{ReadOnly=true,Flags="SDC_VALIDATE | SDC_USE_SUPPLIED_DISPLAY_CONFIG",OriginalValidationCode=original,RebuiltValidationCode=rebuilt,DisplayCount=live.Active.Count});return original==0&&rebuilt==0?0:2;
+    }
+    if(args.Length>=2&&args[0]=="--validate-plans"){
+     var live=Native.Capture(true);string primary=live.Active.First(d=>d.IsPrimary).Key;var results=new System.Collections.Generic.List<object>();bool passed=true;
+     foreach(var disabled in live.Active){var keys=live.Active.Where(d=>!Native.Same(d.Key,disabled.Key)).Select(d=>d.Key).ToList();if(keys.Count==0)continue;var plan=LayoutPlanner.Plan(live.Active,keys,primary);int code=Native.Configure(Native.Build(plan,live.Bindings),true,false);passed&=code==0;results.Add(new{Disabled=disabled.Model,Code=code,Planned=plan.Select(d=>new{d.Model,d.X,d.Y,d.Width,d.Height}).ToList()});}
+     foreach(var binding in live.Bindings.Where(b=>b.Available&&!b.Active&&!live.Active.Any(d=>Native.Same(d.Key,b.Key))).GroupBy(b=>b.Key,StringComparer.OrdinalIgnoreCase).Select(g=>g.First())){var records=live.Active.Select(d=>d.Copy()).ToList();records.Add(Native.Preferred(binding,records.Max(d=>d.Right)));var plan=LayoutPlanner.Plan(records,records.Select(d=>d.Key),primary);int code=Native.Configure(Native.Build(plan,live.Bindings),true,false);passed&=code==0;results.Add(new{Enabled=binding.Name,Code=code,Note="Preferred mode validation only"});}
+     Json.Write(args[1],new{ReadOnly=true,HardwareWrites=0,Cases=results});return passed?0:2;
+    }
+    if(args.Length>=2&&args[0]=="--test-cancelled-watchdog"){
+     string directory=Path.GetDirectoryName(Path.GetFullPath(args[1]));string file=Path.Combine(directory,"cancelled-watchdog.json");
+     Json.Write(file,new RecoveryRecord{Id=Guid.NewGuid().ToString("N"),DeadlineTicks=DateTime.UtcNow.AddSeconds(3).Ticks,Before=new TopologyImage()});File.WriteAllText(file+".status","cancelled");
+     using(var child=System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo{FileName=System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName,Arguments="--watchdog "+Quote(file),UseShellExecute=false,CreateNoWindow=true,WindowStyle=System.Diagnostics.ProcessWindowStyle.Hidden})){
+      if(!child.WaitForExit(5000)){child.Kill();throw new TimeoutException("O processo auxiliar não encerrou.");}Json.Write(args[1],new{ChildExitCode=child.ExitCode,Ready=File.Exists(file+".ready"),Status=File.ReadAllText(file+".status"),HardwareWrites=0});return child.ExitCode;
+     }
+    }
+    string data=Option(args,"--data-dir")??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),ProductInfo.AppId);
+    if(args.Length>=2&&args[0]=="--ui-smoke"){
+     var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};var desktop=new DesktopApp(data,true);Json.Write(args[1],desktop.SmokeTest());app.Shutdown();return 0;
+    }
+    if(args.Length>=2&&args[0]=="--render-preview"){
+     var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};var desktop=new DesktopApp(data,true);desktop.RenderPreview(args[1]);app.Shutdown();return 0;
+    }
+    if(args.Length>0&&args[0]!="--data-dir")throw new ArgumentException("Opção desconhecida. Use "+ProductInfo.Executable+" para abrir a interface.");
+    bool created;using(var mutex=new Mutex(true,"Local\\"+ProductInfo.AppId+"Desktop",out created)) {
+     if(!created){MessageBox.Show("O "+ProductInfo.Name+" já está aberto nesta sessão.",ProductInfo.Name,MessageBoxButton.OK,MessageBoxImage.Information);return 0;}
+     var app=new Application{ShutdownMode=ShutdownMode.OnMainWindowClose};var desktop=new DesktopApp(data,false);app.DispatcherUnhandledException+=(s,e)=>{try{File.AppendAllText(Path.Combine(data,"falhas.log"),e.Exception+Environment.NewLine);}catch(IOException){}MessageBox.Show(e.Exception.Message,ProductInfo.Name,MessageBoxButton.OK,MessageBoxImage.Error);e.Handled=true;};return app.Run(desktop.Window);
+    }
+   }catch(Exception e){
+    if(args.Length>=2){try{File.WriteAllText(args[1]+".error.txt",e.ToString());}catch(Exception){}}
+    else MessageBox.Show(e.Message,"Não foi possível iniciar o "+ProductInfo.Name,MessageBoxButton.OK,MessageBoxImage.Error);
+    return 1;
+   }
+  }
+  static int PowerWorker(string file) {
+   var request=Json.Read<PowerRequest>(file);PowerReport result;
+   try {using(var backend=new NativePower(request.Key))result=PowerPolicy.Execute(request,backend);}
+   catch(Exception e){result=new PowerReport{Key=request.Key,Success=false,Supported=false,Message=e.Message};}
+   Json.Write(file+".result",result);return 0;
+  }
+ }
+}
