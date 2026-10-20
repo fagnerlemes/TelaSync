@@ -23,7 +23,7 @@ namespace Tela {
     if(args.Length>=2&&args[0]=="--watchdog")return RecoveryGuard.Watch(args[1]);
     if(args.Length>=2&&args[0]=="--self-test"){Json.Write(args[1],Tests.Run(Path.GetDirectoryName(Path.GetFullPath(args[1]))));return 0;}
     if(args.Length>=2&&args[0]=="--probe"){
-     var all=Native.Capture(true);Json.Write(args[1],new{Version="0.1.0",ReadOnly=true,Active=all.Active,Connected=all.Bindings.Where(p=>p.Available).GroupBy(p=>p.Key,StringComparer.OrdinalIgnoreCase).Select(g=>new{Key=g.Key,Model=g.First().Name,Active=g.Any(p=>p.Active)}).ToList()});return 0;
+     var all=Native.Capture(true);Json.Write(args[1],new{Version=ProductInfo.Version,ReadOnly=true,Active=all.Active,Connected=all.Bindings.Where(p=>p.Available).GroupBy(p=>p.Key,StringComparer.OrdinalIgnoreCase).Select(g=>new{Key=g.Key,Model=g.First().Name,Active=g.Any(p=>p.Active)}).ToList()});return 0;
     }
     if(args.Length>=2&&args[0]=="--validate-current"){
      var live=Native.Capture(false);var all=Native.Capture(true);var built=Native.Build(live.Active,all.Bindings);int original=Native.Configure(live.Image(),true,false),rebuilt=Native.Configure(built,true,false);
@@ -42,17 +42,22 @@ namespace Tela {
       if(!child.WaitForExit(5000)){child.Kill();throw new TimeoutException("O processo auxiliar não encerrou.");}Json.Write(args[1],new{ChildExitCode=child.ExitCode,Ready=File.Exists(file+".ready"),Status=File.ReadAllText(file+".status"),HardwareWrites=0});return child.ExitCode;
      }
     }
+    if(args.Length>=2&&args[0]=="--validate-editor"){
+     var live=Native.Capture(true);string primary=live.Active.First(d=>d.IsPrimary).Key;var other=live.Active.Where(d=>!d.IsPrimary).OrderByDescending(d=>d.Width).FirstOrDefault();var cases=new System.Collections.Generic.List<object>();bool passed=true;
+     if(other!=null){var editor=new LayoutEditor(live.Active,primary);editor.Move(other.Key,live.Active.Max(d=>d.Right),0);editor.Snap(other.Key,10);var plan=LayoutPlanner.Plan(editor.Normalize(),live.Active.Select(d=>d.Key),editor.PrimaryKey);int position=Native.Configure(Native.Build(plan,live.Bindings),true,false);passed&=position==0;cases.Add(new{Case="move secondary to right",Code=position});editor=new LayoutEditor(live.Active,primary);editor.MakePrimary(other.Key);plan=LayoutPlanner.Plan(editor.Normalize(),live.Active.Select(d=>d.Key),editor.PrimaryKey);int main=Native.Configure(Native.Build(plan,live.Bindings),true,false);passed&=main==0;cases.Add(new{Case="change primary monitor",Code=main});}
+     Json.Write(args[1],new{ReadOnly=true,HardwareWrites=0,Cases=cases});return passed?0:2;
+    }
     string data=Option(args,"--data-dir")??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),ProductInfo.AppId);
     if(args.Length>=2&&args[0]=="--ui-smoke"){
      var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};var desktop=new DesktopApp(data,true);Json.Write(args[1],desktop.SmokeTest());app.Shutdown();return 0;
     }
     if(args.Length>=2&&args[0]=="--render-preview"){
-     var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};var desktop=new DesktopApp(data,true);desktop.RenderPreview(args[1]);app.Shutdown();return 0;
+     var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};var desktop=new DesktopApp(data,true);if(Option(args,"--theme")=="light")desktop.PreviewTheme(false);desktop.PreviewPage(Option(args,"--view"));desktop.RenderPreview(args[1]);app.Shutdown();return 0;
     }
-    if(args.Length>0&&args[0]!="--data-dir")throw new ArgumentException("Opção desconhecida. Use "+ProductInfo.Executable+" para abrir a interface.");
+    if(args.Length>0&&args[0]!="--data-dir"&&args[0]!="--start-minimized")throw new ArgumentException("Opção desconhecida. Use "+ProductInfo.Executable+" para abrir a interface.");
     bool created;using(var mutex=new Mutex(true,"Local\\"+ProductInfo.AppId+"Desktop",out created)) {
-     if(!created){MessageBox.Show("O "+ProductInfo.Name+" já está aberto nesta sessão.",ProductInfo.Name,MessageBoxButton.OK,MessageBoxImage.Information);return 0;}
-     var app=new Application{ShutdownMode=ShutdownMode.OnMainWindowClose};var desktop=new DesktopApp(data,false);app.DispatcherUnhandledException+=(s,e)=>{try{File.AppendAllText(Path.Combine(data,"falhas.log"),e.Exception+Environment.NewLine);}catch(IOException){}MessageBox.Show(e.Exception.Message,ProductInfo.Name,MessageBoxButton.OK,MessageBoxImage.Error);e.Handled=true;};return app.Run(desktop.Window);
+     if(!created){NativeTheme.RequestShow();return 0;}
+     var app=new Application{ShutdownMode=ShutdownMode.OnMainWindowClose};var desktop=new DesktopApp(data,false);app.SessionEnding+=(s,e)=>desktop.AllowExit();if(args.Contains("--start-minimized"))desktop.Window.Loaded+=(s,e)=>desktop.Window.Dispatcher.BeginInvoke(new Action(desktop.StartInTray));app.DispatcherUnhandledException+=(s,e)=>{try{File.AppendAllText(Path.Combine(data,"falhas.log"),e.Exception+Environment.NewLine);}catch(IOException){}MessageBox.Show(e.Exception.Message,ProductInfo.Name,MessageBoxButton.OK,MessageBoxImage.Error);e.Handled=true;};return app.Run(desktop.Window);
     }
    }catch(Exception e){
     if(args.Length>=2){try{File.WriteAllText(args[1]+".error.txt",e.ToString());}catch(Exception){}}

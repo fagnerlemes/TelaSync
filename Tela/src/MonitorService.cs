@@ -42,6 +42,14 @@ namespace Tela {
    foreach(var d in profile.Displays){updated.Remembered.RemoveAll(r=>Native.Same(r.Key,d.Key));updated.Remembered.Add(d.Copy());}
    updated.PrimaryKey=profile.PrimaryKey;return Prepare(live,updated,profile.Enabled,profile.PrimaryKey);
   }
+  public PreparedChange PrepareArrangement(LayoutEditor editor) {
+   var live=Native.Capture(true);RequireExtended(live);var updated=Json.Clone(State);
+   if(!live.Active.Any(d=>Native.Same(d.Key,editor.PrimaryKey)))throw new InvalidOperationException("A tela principal precisa estar ativa.");
+   updated.Remembered=editor.Normalize();updated.PrimaryKey=editor.PrimaryKey;
+   var desired=LayoutPlanner.Plan(updated.Remembered,live.Active.Select(d=>d.Key),updated.PrimaryKey);
+   foreach(var d in desired){var saved=updated.Remembered.First(r=>Native.Same(r.Key,d.Key));saved.X=d.X;saved.Y=d.Y;}
+   return Prepare(live,updated,live.Active.Select(d=>d.Key),updated.PrimaryKey);
+  }
   static void RequireExtended(NativeTopology live) {
    var active=live.Bindings.Where(b=>b.Active).ToList();if(active.Select(b=>b.SourceKey).Distinct().Count()!=active.Count)throw new InvalidOperationException("Esta primeira versão altera layouts no modo estendido. Desfaça a duplicação nas Configurações do Windows antes de continuar.");
   }

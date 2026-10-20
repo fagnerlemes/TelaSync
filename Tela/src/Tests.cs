@@ -32,13 +32,22 @@ namespace Tela {
    var leftPath=Convert.FromBase64String(image.Paths.First(p=>Native.U32(Convert.FromBase64String(p),28)==200));var leftSource=Convert.FromBase64String(image.Modes[(int)Native.U32(leftPath,12)]);Check(Native.I32(leftSource,28)==-1920&&Native.U32(leftSource,4)==6,"remapped source preserves remembered X and source metadata");
    var smallPath=Convert.FromBase64String(image.Paths.First(p=>Native.U32(Convert.FromBase64String(p),28)==100));Check(Native.U32(smallPath,40)==4,"rebinding preserves target rotation");
    caught=false;try{Native.Build(memory,bindings.Where(b=>b.Key!="left").ToList());}catch(InvalidOperationException){caught=true;}Check(caught,"disconnected target aborts instead of applying partial profile");
-   Check(PowerPolicy.Values("vcp(10 D6(01 04 05) DF)").SequenceEqual(new uint[]{1,4,5}),"parse MCCS power values");Check(PowerPolicy.OffValue(new List<uint>{1,2,4})==2,"prefer announced standby");Check(PowerPolicy.OffValue(new List<uint>{1,4,5})==4,"use announced off mode, never write-only value 5");Check(PowerPolicy.OffValue(new List<uint>{1,5})==0,"reject unvalidated write-only power mode");
+   Check(PowerPolicy.Values("vcp(10 D6(01 04 05) DF)").SequenceEqual(new uint[]{1,4,5}),"parse MCCS power values");Check(PowerPolicy.OffValue(new List<uint>{1,2,4})==4,"prefer announced off over standby");Check(PowerPolicy.OffValue(new List<uint>{1,4,5})==5,"prefer explicit panel-off to avoid immediate wake");Check(PowerPolicy.OffValue(new List<uint>{1,2})==2,"standby is used only when no off state is advertised");Check(PowerPolicy.OffValue(new List<uint>{4,5})==0,"require an advertised return-on state");
    using(var fake=new FakePower("left",true)) {var report=PowerPolicy.Execute(new PowerRequest{Key="left",Action="sleep"},fake);Check(report.Success&&fake.Sent.SequenceEqual(new uint[]{4}),"only selected physical backend receives sleep command");Check(report.TopologyUnchanged,"power command preserves desktop fingerprint");}
    using(var fake=new FakePower("left",false)) {var report=PowerPolicy.Execute(new PowerRequest{Key="left",Action="sleep"},fake);Check(!report.Success&&fake.Sent.Count==0,"unsupported power sends nothing and has no global fallback");}
    using(var fake=new FakePower("left",false)){var report=PowerPolicy.Execute(new PowerRequest{Key="left",Action="wake"},fake);Check(report.Success&&fake.Sent.SequenceEqual(new uint[]{1}),"wake may be requested even if asleep monitor cannot report capabilities");}
    using(var fake=new FakePower("main",true)){caught=false;try{PowerPolicy.Execute(new PowerRequest{Key="left",Action="sleep"},fake);}catch(InvalidOperationException){caught=true;}Check(caught&&fake.Sent.Count==0,"mismatched physical identity blocks power writes");}
    using(var fake=new FakePower("left",true)){fake.ChangeTopology=true;var report=PowerPolicy.Execute(new PowerRequest{Key="left",Action="sleep"},fake);Check(!report.Success&&!report.Supported&&fake.Sent.SequenceEqual(new uint[]{4,1}),"connection loss triggers wake of same panel and marks method incompatible");}
    using(var fake=new FakePower("left",true)){PowerPolicy.Execute(new PowerRequest{Key="left",Action="probe"},fake);Check(fake.Sent.Count==0,"capability probe is read-only");}
+   var editor=new LayoutEditor(memory,"main");editor.Move("left",3445,3);editor.Snap("left",10);Check(editor.Find("left").X==3440&&editor.Find("left").Y==0,"layout editor snaps screen edges and vertical alignment");Check(LayoutPlanner.Fingerprint(memory)==baseline,"layout draft never changes saved memory before confirmation");
+   editor.Number("left",1);Check(editor.Find("main").Number==2&&editor.Find("left").Number==1,"renumbering swaps labels without changing monitor identity");editor.MakePrimary("left");var normalized=editor.Normalize();Check(normalized.First(d=>d.Key=="left").X==0&&normalized.First(d=>d.Key=="main").X==-3440,"primary selection normalizes all saved positions");
+   editor.Move("small",100,100);editor.Snap("small",0);Check(!editor.Displays.Where(d=>d.Key!="small").Any(d=>LayoutPlanner.Overlap(d,editor.Find("small"))),"drop resolves overlap without stacking monitors");
+   using(var fake=new FakeBrightness("left",true)){var r=PowerPolicy.Execute(new PowerRequest{Key="left",Action="brightness-set",BrightnessPercent=25},fake);Check(r.Success&&fake.Writes.SequenceEqual(new uint[]{64})&&fake.PowerWrites==0,"brightness scales percent to hardware max and never sends power commands");}
+   using(var fake=new FakeBrightness("left",false)){var r=PowerPolicy.Execute(new PowerRequest{Key="left",Action="brightness-set",BrightnessPercent=50},fake);Check(!r.Success&&fake.Writes.Count==0,"unsupported brightness performs no writes");}
+   using(var fake=new FakeBrightness("left",true)){caught=false;try{PowerPolicy.Execute(new PowerRequest{Key="left",Action="brightness-set",BrightnessPercent=101},fake);}catch(ArgumentException){caught=true;}Check(caught&&fake.Writes.Count==0,"brightness rejects percentages above range");}
+   using(var fake=new FakeBrightness("main",true)){caught=false;try{PowerPolicy.Execute(new PowerRequest{Key="left",Action="brightness-set",BrightnessPercent=50},fake);}catch(InvalidOperationException){caught=true;}Check(caught&&fake.Writes.Count==0,"brightness rejects a changed physical identity");}
+   using(var fake=new FakeBrightness("left",true)){PowerPolicy.Execute(new PowerRequest{Key="left",Action="brightness-probe"},fake);Check(fake.Writes.Count==0,"brightness probe does not change the panel");}
+   var startup=new FakeStartup();string app=Path.Combine(Path.GetFullPath(tempRoot),"TelaSync.exe");StartupPolicy.Set(startup,app,true);Check(startup.Value==Program.Quote(app)+" --start-minimized","startup uses quoted executable path and tray argument");StartupPolicy.Set(startup,app,false);Check(startup.Value==null,"startup can be disabled without affecting other entries");startup.Value="another-program.exe";caught=false;try{StartupPolicy.Set(startup,app,false);}catch(InvalidOperationException){caught=true;}Check(caught&&startup.Value=="another-program.exe","startup preserves an unrecognized existing entry");
    string dir=Path.Combine(Path.GetFullPath(tempRoot),"tela-test-"+Guid.NewGuid().ToString("N"));
    try {
     var store=new StateStore(dir);store.Save(roundtrip);var restarted=store.Load();Check(LayoutPlanner.Fingerprint(restarted.Remembered)==baseline,"saved memory survives a fresh store instance");
@@ -53,6 +62,13 @@ namespace Tela {
    public void Send(uint value){Sent.Add(value);}
    public string Fingerprint(){return ChangeTopology&&Sent.Count>0?"changed":"stable";}
    public void Dispose(){}
+  }
+  sealed class FakeStartup:IStartupStore{public string Value;public string Read(){return Value;}public void Write(string value){Value=value;}public void Delete(){Value=null;}}
+  sealed class FakeBrightness:IPowerBackend,IBrightnessBackend {
+   public string Key{get;private set;}readonly bool support;public List<uint> Writes=new List<uint>();public int PowerWrites;
+   public FakeBrightness(string key,bool supported){Key=key;support=supported;}
+   public PowerReport ReadBrightness(){return new PowerReport{Key=Key,Success=support,Supported=support,BrightnessMaximum=255,BrightnessPercent=50};}
+   public void SendBrightness(uint value){Writes.Add(value);}public PowerReport Probe(){throw new Exception("Brightness must not query power");}public void Send(uint value){PowerWrites++;}public string Fingerprint(){return "stable";}public void Dispose(){}
   }
  }
 }

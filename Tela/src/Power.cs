@@ -12,11 +12,12 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace Tela {
- public sealed class PowerRequest { public string Key,Action; }
+ public sealed class PowerRequest { public string Key,Action;public int BrightnessPercent=-1; }
  public sealed class PowerReport {
   public string Key,Message,Capabilities;
   public bool Success,Supported,RequestedOff,TopologyUnchanged=true;
-  public uint OffValue,CurrentValue;
+  public uint OffValue,CurrentValue,BrightnessMaximum;
+  public int BrightnessPercent;
   public List<uint> Values=new List<uint>();
  }
  public interface IPowerBackend:IDisposable {
@@ -25,14 +26,27 @@ namespace Tela {
   void Send(uint value);
   string Fingerprint();
  }
+ public interface IBrightnessBackend {PowerReport ReadBrightness();void SendBrightness(uint value);}
+ public static class BrightnessPolicy {
+  public static PowerReport Execute(PowerRequest request,IPowerBackend backend){
+   if(!Native.Same(request.Key,backend.Key))throw new InvalidOperationException("A tela selecionada mudou. Nenhum comando de brilho foi enviado.");
+   var brightness=backend as IBrightnessBackend;if(brightness==null)throw new InvalidOperationException("Brilho individual indisponível.");
+   var report=brightness.ReadBrightness();if(request.Action=="brightness-probe"||!report.Supported)return report;
+   if(request.Action!="brightness-set"||request.BrightnessPercent<0||request.BrightnessPercent>100)throw new ArgumentException("Informe um brilho entre 0 e 100%.");
+   string before=backend.Fingerprint();uint value=(uint)Math.Round(report.BrightnessMaximum*request.BrightnessPercent/100.0);brightness.SendBrightness(value);
+   report.TopologyUnchanged=before==backend.Fingerprint();report.Success=report.TopologyUnchanged;report.BrightnessPercent=(int)Math.Round(value*100.0/report.BrightnessMaximum);
+   report.Message=report.Success?"Brilho enviado somente à tela selecionada: "+report.BrightnessPercent+"%.":"A conexão mudou durante o ajuste de brilho. Atualize o inventário antes de repetir.";return report;
+  }
+ }
  public static class PowerPolicy {
   public static List<uint> Values(string capabilities) {
    var m=Regex.Match(capabilities??"",@"\bD6\s*\(([^)]*)\)",RegexOptions.IgnoreCase);
    if(!m.Success)return new List<uint>();
    return Regex.Matches(m.Groups[1].Value,@"\b[0-9A-Fa-f]{2}\b").Cast<Match>().Select(v=>UInt32.Parse(v.Value,NumberStyles.HexNumber,CultureInfo.InvariantCulture)).Distinct().ToList();
   }
-  public static uint OffValue(List<uint> values) {return !values.Contains(1)?0:values.Contains(2)?2u:values.Contains(4)?4u:0;}
+  public static uint OffValue(List<uint> values) {return !values.Contains(1)?0:values.Contains(5)?5u:values.Contains(4)?4u:values.Contains(3)?3u:values.Contains(2)?2u:0;}
   public static PowerReport Execute(PowerRequest request,IPowerBackend backend) {
+   if(request.Action=="brightness-probe"||request.Action=="brightness-set")return BrightnessPolicy.Execute(request,backend);
    if(!Native.Same(request.Key,backend.Key))throw new InvalidOperationException("Identidade da tela mudou. Nenhum comando foi enviado.");
    if(request.Action=="probe")return backend.Probe();
    if(request.Action!="sleep"&&request.Action!="wake")throw new ArgumentException("Ação de energia inválida.");
@@ -51,7 +65,7 @@ namespace Tela {
    return report;
   }
  }
- public sealed class NativePower:IPowerBackend {
+ public sealed class NativePower:IPowerBackend,IBrightnessBackend {
   [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)]struct Physical {public IntPtr Handle;[MarshalAs(UnmanagedType.ByValTStr,SizeConst=128)]public string Description;}
   [DllImport("dxva2.dll",SetLastError=true)]static extern bool GetNumberOfPhysicalMonitorsFromHMONITOR(IntPtr monitor,out uint count);
   [DllImport("dxva2.dll",SetLastError=true)]static extern bool GetPhysicalMonitorsFromHMONITOR(IntPtr monitor,uint count,[Out]Physical[] physical);
@@ -88,18 +102,26 @@ namespace Tela {
    // No monitor-wide broadcast, black overlay or display-disable fallback exists here.
    var live=Native.Capture(false);if(!live.Active.Any(d=>Native.Same(d.Key,Key)&&Native.Same(d.DeviceName,sourceName)))throw new InvalidOperationException("A tela ou o caminho de conexão mudou. Atualize antes de enviar o comando.");
    if(!SetVCPFeature(handles[0].Handle,0xd6,value))throw new Win32Exception(Marshal.GetLastWin32Error(),"O painel não aceitou o comando DDC/CI.");
-   Thread.Sleep(700);
+   // Let the firmware settle before checking desktop topology. Do not query DDC
+   // capabilities or the power value after sleep: some panels wake on DDC reads.
+   Thread.Sleep(value==1?600:2200);
   }
+  public PowerReport ReadBrightness(){
+   uint type,current,maximum;bool ok=GetVCPFeatureAndVCPFeatureReply(handles[0].Handle,0x10,out type,out current,out maximum);
+   bool valid=ok&&maximum>0&&maximum<=65535&&current<=maximum;
+   return new PowerReport{Key=Key,Success=valid,Supported=valid,BrightnessMaximum=valid?maximum:0,BrightnessPercent=valid?(int)Math.Round(current*100.0/maximum):0,Message=valid?"Brilho individual disponível para esta tela.":"A conexão não disponibilizou brilho individual por DDC/CI. Verifique o menu físico e o cabo do monitor."};
+  }
+  public void SendBrightness(uint value){var live=Native.Capture(false);if(!live.Active.Any(d=>Native.Same(d.Key,Key)&&Native.Same(d.DeviceName,sourceName)))throw new InvalidOperationException("A conexão da tela mudou.");if(!SetVCPFeature(handles[0].Handle,0x10,value))throw new Win32Exception(Marshal.GetLastWin32Error(),"O monitor não aceitou o ajuste de brilho.");}
   public string Fingerprint() {return LayoutPlanner.Fingerprint(Native.Capture(false).Active);}
   public void Dispose() {if(handles!=null){DestroyPhysicalMonitors((uint)handles.Length,handles);handles=null;}}
  }
  public sealed class PowerClient {
   readonly string directory;readonly SemaphoreSlim gate=new SemaphoreSlim(1,1);
   public PowerClient(string dataDirectory){directory=Path.Combine(dataDirectory,"power");}
-  public async Task<PowerReport> Execute(string key,string action) {
+  public async Task<PowerReport> Execute(string key,string action,int brightness=-1) {
    await gate.WaitAsync();string requestPath=null;
    try {
-    Directory.CreateDirectory(directory);requestPath=Path.Combine(directory,Guid.NewGuid().ToString("N")+".json");Json.Write(requestPath,new PowerRequest{Key=key,Action=action});
+    Directory.CreateDirectory(directory);requestPath=Path.Combine(directory,Guid.NewGuid().ToString("N")+".json");Json.Write(requestPath,new PowerRequest{Key=key,Action=action,BrightnessPercent=brightness});
     using(var child=Process.Start(new ProcessStartInfo{FileName=Process.GetCurrentProcess().MainModule.FileName,Arguments="--power-worker "+Program.Quote(requestPath),UseShellExecute=false,CreateNoWindow=true,WindowStyle=ProcessWindowStyle.Hidden})) {
      bool exited=await Task.Run(()=>child.WaitForExit(15000));
      if(!exited){try{child.Kill();child.WaitForExit(2000);}catch(InvalidOperationException){}throw new TimeoutException("O driver não respondeu em 15 segundos. A interface continua disponível. Confira o painel antes de repetir um comando de energia.");}

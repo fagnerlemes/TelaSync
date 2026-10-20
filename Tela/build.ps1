@@ -12,6 +12,7 @@ $generated = @"
 namespace Tela { public static class ProductInfo {
  public const string Name = "$(Escape-CSharp $product.name)";
  public const string Version = "$(Escape-CSharp $product.version)";
+ public const string PatchFrom = "$(Escape-CSharp $product.patchFrom)";
  public const string AssemblyVersion = "$(Escape-CSharp $product.version).0";
  public const string Executable = "$(Escape-CSharp $product.executable)";
  public const string AppId = "$(Escape-CSharp $product.appId)";
@@ -23,6 +24,10 @@ $generated | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'src\ProductInfo.
 $compileArguments = @('/nologo','/target:winexe','/platform:x64','/optimize+','/codepage:65001','/warn:4',('/out:' + (Join-Path $outputPath $product.executable)),('/win32manifest:' + (Join-Path $PSScriptRoot 'app.manifest')),('/win32icon:' + (Join-Path $PSScriptRoot 'assets\app.ico')),('/resource:' + (Join-Path $PSScriptRoot 'assets\app-icon.png') + ',Tela.Icon.png'),('/resource:' + (Join-Path $PSScriptRoot 'assets\signature.png') + ',Tela.Signature.png'),('/resource:' + (Join-Path $PSScriptRoot 'src\MainWindow.xaml') + ',Tela.MainWindow.xaml'))
 foreach ($assemblyName in @('System.dll','System.Core.dll','System.Web.Extensions.dll','System.Xaml.dll','WPF\WindowsBase.dll','WPF\PresentationCore.dll','WPF\PresentationFramework.dll','WPF\UIAutomationTypes.dll')) { $compileArguments += '/reference:' + (Join-Path $frameworkDir $assemblyName) }
 $compileArguments += Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'src') -Filter '*.cs' | ForEach-Object { $_.FullName }
+$compileArguments += '/resource:' + (Join-Path $PSScriptRoot 'src\Theme.xaml') + ',Tela.Theme.xaml'
+$compileArguments += '/resource:' + (Join-Path $PSScriptRoot 'assets\app.ico') + ',Tela.Icon.ico'
+$compileArguments += '/reference:' + (Join-Path $frameworkDir 'System.Windows.Forms.dll')
+$compileArguments += '/reference:' + (Join-Path $frameworkDir 'System.Drawing.dll')
 & $compilerPath $compileArguments
 if ($LASTEXITCODE -ne 0) { throw 'A compilação falhou.' }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Tela.exe.config') -Destination (Join-Path $outputPath ($product.executable + '.config')) -Force

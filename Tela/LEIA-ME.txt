@@ -1,105 +1,143 @@
-TelaSync — versão 0.1.0
+TelaSync — versão 0.1.1
 By Fagner Lemes
 
-Gerenciador de monitores para Windows 10/11 x64, com interface Mapa e detalhes.
-Requer .NET Framework 4.8. O aplicativo não depende do MultiMonitorTool.
+Windows 10/11 x64 · .NET Framework 4.8
 
-INSTALAR E ABRIR
+ATUALIZAR A INSTALAÇÃO EXISTENTE
 
-Execute TelaSync-0.1.0-Setup.exe. O instalador cria atalhos na área de trabalho
-e no Menu Iniciar se essas opções estiverem marcadas. Não requer administrador.
-A instalação fica em %LOCALAPPDATA%\Programs\TelaSync.
-Também é possível usar TelaSync.exe e seu arquivo .config sem instalação.
+Para passar de 0.1.0 a 0.1.1, use TelaSync-0.1.1-Patch.exe.
+Feche o programa antes, inclusive pelo menu Sair na bandeja.
+O patch troca os arquivos alterados, atualiza a versão no Windows e mantém
+os atalhos, perfis e preferências. Se a gravação falhar, restaura os arquivos
+anteriores tocados pela atualização. Nenhuma reinstalação do zero é necessária.
+O patch exige a instalação anterior e não faz downgrade de uma versão posterior.
 
-POSIÇÕES DAS TELAS
+Para instalar pela primeira vez ou reparar arquivos ausentes, use
+TelaSync-0.1.1-Setup.exe. É uma instalação para o usuário atual, sem administrador,
+em %LOCALAPPDATA%\Programs\TelaSync. Atalhos no Desktop e Menu Iniciar são opcionais.
+TelaSync.exe e seu .config também podem ser usados de forma portátil.
 
-O programa registra a disposição encontrada no primeiro uso e mantém uma
-memória por identidade do monitor. Deixe Preservar posição ao reativar marcado.
-Ao desativar uma tela, os espaços vazios são compactados temporariamente;
-essa compactação não substitui as posições lembradas. Ao reativar, o conjunto
-é reconstruído a partir da memória. Coordenadas negativas e orientação são
-preservadas. A memória continua disponível depois de fechar o programa.
+ORGANIZAR, ORDENAR E ALINHAR AS TELAS
 
-Se você reorganizar as telas nas Configurações do Windows, use Registrar a
-disposição atual para adotar explicitamente a nova organização. O mapa mostra
-as posições salvas; o painel lateral mostra também a posição atual do desktop.
-Uma tela encontrada já desativada recebe uma posição inicial à direita e o modo
-preferido informado pelo driver. O programa ainda não conhece a posição antiga
-dessa tela. Após ativação confirmada, registra a posição inicial.
+Clique em Organizar telas. Arraste os retângulos para mudar a ordem, alinhe
+pelas bordas ou digite as coordenadas X e Y da tela selecionada. As setas do
+teclado ajustam 10 px; Shift ajusta 1 px e Ctrl ajusta 100 px quando o mapa
+está com foco. Atualizar adota os valores digitados na edição.
 
-As mudanças são validadas antes de aplicar. A configuração é temporária até
-você confirmar em 15 segundos. Um processo auxiliar independente solicita a
-reversão se o aplicativo parar antes de confirmar. A reversão depende de o
-hardware continuar disponível e do driver aceitar a configuração anterior.
+É possível trocar os números usados pelo TelaSync e definir a tela principal.
+A numeração do TelaSync identifica os painéis dentro do aplicativo; o Windows
+pode usar uma numeração própria. A posição e a tela principal são aplicadas
+no desktop do Windows.
 
-APAGAR SOMENTE UM PAINEL
+Aplicar disposição valida o plano e pede confirmação em 15 segundos.
+Cancelar edição descarta o rascunho sem alterar o desktop ou a memória salva.
+Espaços vazios e sobreposições são ajustados para manter as telas adjacentes.
+A nova disposição confirmada passa a ser a memória usada ao reativar telas.
 
-Selecione uma tela e clique em Verificar compatibilidade. O programa consulta
-o recurso D6 (energia) por DDC/CI. Apagar painel só fica disponível quando o
-monitor anuncia os estados necessários. Acender painel permite tentar o retorno
-mesmo quando um painel em repouso não responde à consulta de capacidades.
+POSIÇÃO AO DESATIVAR E REATIVAR
 
-Apagar painel envia um comando somente ao painel selecionado e verifica se o
-conjunto de telas e posições permaneceu igual. Não usa tela preta nem comando
-global e não substitui a ação por desativar a saída. Se a conexão mudar, tenta
-acender o mesmo painel e informa a incompatibilidade. O sucesso do comando do
-driver não comprova visualmente o resultado: a interface diz Comando enviado.
+Deixe Preservar posição ao reativar marcado. A memória utiliza a identidade
+do monitor, incluindo coordenadas negativas e orientação. A compactação de
+espaços ao desativar uma tela é temporária e não sobrescreve a disposição salva.
+A memória sobrevive ao fechamento do programa e à atualização para 0.1.1.
 
-Alguns monitores não oferecem DDC/CI, precisam que DDC/CI seja habilitado no menu
-físico, ou perdem comunicação ao apagar. Cabo, adaptador e driver interferem.
-Entrar em repouso por inatividade do Windows não comprova controle individual.
-Se o religamento não for aceito, poderá ser necessário usar o botão do painel.
+Registrar a disposição atual adota a organização feita nas Configurações do
+Windows. Uma tela encontrada desativada antes do primeiro uso recebe uma
+posição inicial à direita; a posição antiga anterior ao uso do TelaSync não é
+conhecida. A posição é registrada após a ativação confirmada.
 
-Nesta máquina, as consultas de leitura encontraram suporte anunciado no Samsung
-LC34G55T. Blizzard 27' e o painel HDMI auxiliar não responderam ao DDC/CI na
-conexão atual. Nenhum comando de energia foi executado durante os testes.
+Um processo auxiliar independente solicita reversão quando uma mudança não é
+confirmada ou o aplicativo para durante a operação. A reversão depende de o
+hardware continuar conectado e de o driver aceitar a configuração anterior.
 
-PERFIS E ATALHOS
+APAGAR SOMENTE O PAINEL SELECIONADO
 
-Digite um nome no campo Perfil de telas e clique em Salvar perfil. Se já existir,
-o perfil com esse nome é atualizado. Aplicar recupera as telas ativas e a memória
-de posição do perfil, com a mesma confirmação e reversão.
+Clique em Verificar compatibilidade. O controle usa energia D6 por DDC/CI.
+A versão 0.1.1 prioriza o desligamento explícito (5), quando anunciado pelo
+monitor, seguido de desligamento (4), suspensão (3) ou repouso (2).
+A versão anterior priorizava repouso, que pode retornar com sinal ativo.
+Após apagar, o programa aguarda a estabilização do firmware e verifica o
+desktop sem reler as capacidades DDC/CI do painel.
 
-Enquanto o aplicativo estiver aberto:
-Ctrl + Alt + P: apagar o painel selecionado.
-Ctrl + Alt + L: acender o painel selecionado.
-Ctrl + Alt + D: desativar ou reativar a tela selecionada.
-Se outro aplicativo já usar um atalho, a seção Atalhos informa o conflito.
+Não usa comando global, tela preta nem desativação da saída como substitutos.
+Se o desktop mudar ao apagar, tenta acender o mesmo painel e informa a
+incompatibilidade. O retorno do driver não comprova visualmente que a tela
+permaneceu apagada. A mensagem de envio deve ser confirmada no painel real.
 
-DADOS, AUTORIA E DESINSTALAÇÃO
+Acender envia o estado ligado ao painel selecionado. Alguns monitores deixam
+de responder à comunicação quando apagados, exigindo o botão físico para voltar.
+TVs, cabos, adaptadores e configurações do menu físico podem limitar DDC/CI.
+Não há consultas periódicas nem reenvio contínuo de desligamento.
+
+BRILHO DO MONITOR
+
+Selecione a tela e clique em Ler na seção Brilho do monitor. Quando a leitura
+individual é aceita, mova o controle de 0 a 100% e clique em Aplicar.
+O valor percentual é convertido para o intervalo de brilho do hardware.
+Arrastar o controle não envia comandos até clicar em Aplicar.
+
+O controle usa o recurso DDC/CI 10 e só se dirige ao monitor selecionado.
+Não modifica a energia, a resolução ou a topologia. Quando o monitor não
+responde, o controle permanece indisponível. Painéis apagados devem ser
+acesos antes da consulta para evitar despertá-los com uma leitura de brilho.
+
+BANDEJA E INICIALIZAÇÃO DO WINDOWS
+
+Ao fechar pelo X, escolha Minimizar para bandeja, Fechar programa ou Cancelar.
+Clique duas vezes no ícone da bandeja para abrir a janela. O menu da bandeja
+oferece Abrir TelaSync e Sair. Sair encerra o programa diretamente.
+
+Em Preferências, marque Iniciar o TelaSync com o Windows para abrir na bandeja
+ao entrar na conta do Windows. A opção fica desativada até você a escolher.
+Ela pode ser desligada na mesma tela. Não cria serviço nem tarefa agendada.
+
+PERFIS, ATALHOS E APARÊNCIA
+
+Digite o nome em Perfil de telas e clique Salvar perfil. Aplicar recupera as
+telas ativas e a memória do perfil com confirmação e reversão.
+Ctrl+Alt+P apaga o painel selecionado; Ctrl+Alt+L acende;
+Ctrl+Alt+D desativa/reativa. Funcionam enquanto o app está aberto, inclusive
+na bandeja. A seção Atalhos informa conflitos com outros programas.
+
+O tema azul-marinho usa ciano e violeta, com um tema claro de maior contraste.
+Campos, seletores e rolagem acompanham o tema. O cabeçalho próprio elimina
+a faixa branca do sistema e mantém os controles da janela. A janela inicial maior respeita a área
+útil da tela; em telas menores, a rolagem mantém o acesso aos controles.
+
+DADOS E DESINSTALAÇÃO
 
 Perfis e diagnóstico: %LOCALAPPDATA%\TelaSync.
-state.json guarda a memória; state.json.bak mantém a versão anterior.
-O botão Diagnóstico exporta o inventário para essa pasta. A assinatura no
-rodapé abre Sobre, com nome, versão, ícone e By Fagner Lemes.
+state.json guarda a memória; state.json.bak mantém a cópia anterior.
+A assinatura original no rodapé abre Sobre, com nome, versão e autoria.
 
-Desinstale pelas Configurações do Windows ou pelo atalho Desinstalar TelaSync.
-O desinstalador remove apenas os arquivos e atalhos conhecidos da instalação.
-Os perfis são preservados. Não há serviço, inicialização automática ou acesso
-à rede. O instalador é local e não possui assinatura digital de certificado.
+Desinstale pelas Configurações do Windows ou por Desinstalar TelaSync.
+São removidos apenas os arquivos e atalhos conhecidos da instalação e sua
+entrada de inicialização automática. Os perfis e arquivos desconhecidos são
+preservados. A aplicação não acessa a rede. Os executáveis não possuem
+assinatura digital de certificado.
 
-VALIDAÇÃO DESTA VERSÃO
+VALIDAÇÃO E LIMITES
 
-Testes automatizados cobrem memória de posição, compactação temporária,
-reativação em diferentes ordens, orientação, persistência, remapeamento por
-identidade, seleção individual de energia e rejeição de recursos incompatíveis.
-O Windows validou, sem aplicar, a topologia atual reconstruída e os planos de
-desativação de cada tela e ativação da tela adicional. A interface foi renderizada
-e inspecionada. O efeito físico de apagar/acender e os ciclos reais de mudança
-de topologia ainda precisam de teste de uso nos monitores.
+Os testes usam painéis simulados para confirmar seleção individual, brilho,
+energia e memória. Os planos reais também são verificados com SDC_VALIDATE,
+sem aplicá-los. O efeito físico de apagar/acender e ajustar o brilho ainda
+precisa de confirmação nos monitores. Nenhum teste automatizado envia esses
+comandos físicos nem altera a disposição de trabalho do usuário.
 
-LIMITES DA VERSÃO 0.1.0
-
-As mudanças de layout exigem desktop estendido; duplicação não é alterada.
-Mudar o monitor de porta, trocar GPU ou usar modelos sem identificação única
-pode exigir registrar novamente a disposição. Não há arraste de posição,
-editor de resolução/Hz, restauração de janelas ou automação por horário nesta
-versão. O foco inicial é memória de posição e energia individual compatível.
+As mudanças exigem desktop estendido. Mudar portas, GPU ou usar monitores
+sem identidade única pode exigir novo registro. Não há editor de resolução/Hz,
+restauração de janelas nem automação por horário nesta versão.
 
 COMPILAR
 
-Na pasta de fontes, executar build.ps1 para o aplicativo e
-installer\build-installer.ps1 para o instalador. O compilador C# do .NET Framework
-é utilizado localmente. Nome, versão e autoria ficam em product.json.
-O ícone original está em assets/app-icon.svg, PNG e ICO com sete tamanhos.
-A assinatura original fornecida pelo autor está incorporada sem alteração.
+build.ps1 gera o aplicativo. installer\build-installer.ps1 gera o instalador
+completo. installer\build-patch.ps1 gera os dois pacotes comparando os arquivos
+com a versão de base. Nome, versão e patchFrom ficam em product.json.
+Os ativos do ícone e a assinatura original ficam em assets/.
+
+REFERÊNCIAS TÉCNICAS
+
+Energia D6 e diferenças entre monitores:
+https://www.nirsoft.net/utils/control_my_monitor.html
+Barra de título nativa:
+https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/ui/apply-windows-themes
