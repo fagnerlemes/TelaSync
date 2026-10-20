@@ -47,6 +47,19 @@ namespace Tela {
      if(other!=null){var editor=new LayoutEditor(live.Active,primary);editor.Move(other.Key,live.Active.Max(d=>d.Right),0);editor.Snap(other.Key,10);var plan=LayoutPlanner.Plan(editor.Normalize(),live.Active.Select(d=>d.Key),editor.PrimaryKey);int position=Native.Configure(Native.Build(plan,live.Bindings),true,false);passed&=position==0;cases.Add(new{Case="move secondary to right",Code=position});editor=new LayoutEditor(live.Active,primary);editor.MakePrimary(other.Key);plan=LayoutPlanner.Plan(editor.Normalize(),live.Active.Select(d=>d.Key),editor.PrimaryKey);int main=Native.Configure(Native.Build(plan,live.Bindings),true,false);passed&=main==0;cases.Add(new{Case="change primary monitor",Code=main});}
      Json.Write(args[1],new{ReadOnly=true,HardwareWrites=0,Cases=cases});return passed?0:2;
     }
+    if(args.Length>=2&&args[0]=="--validate-rotation"){
+     var live=Native.Capture(true);string primary=live.Active.First(d=>d.IsPrimary).Key;var cases=new System.Collections.Generic.List<object>();bool passed=true;
+     foreach(var display in live.Active)foreach(int direction in new[]{-1,1}){
+      var editor=new LayoutEditor(live.Active,primary);editor.Rotate(display.Key,direction);var plan=LayoutPlanner.Plan(editor.Normalize(),live.Active.Select(d=>d.Key),primary);int code=Native.Configure(Native.Build(plan,live.Bindings),true,false);passed&=code==0;cases.Add(new{Monitor=display.Model,Direction=direction,Rotation=Native.U32(Convert.FromBase64String(editor.Find(display.Key).PathData),40),Code=code});
+     }
+     Json.Write(args[1],new{ReadOnly=true,HardwareWrites=0,Cases=cases});return passed?0:2;
+    }
+    if(args.Length>=2&&args[0]=="--validate-tv-mode"){
+     var live=Native.Capture(true);var records=live.Active.Select(d=>d.Copy()).ToList();foreach(var binding in live.Bindings.Where(b=>b.Available&&!records.Any(d=>Native.Same(d.Key,b.Key))).GroupBy(b=>b.Key,StringComparer.OrdinalIgnoreCase).Select(g=>g.First()))records.Add(Native.Preferred(binding,records.Max(d=>d.Right)));
+     string key=TvModePlan.ChooseTarget(records,null);if(key==null)throw new InvalidOperationException("TV não identificada sem ambiguidades para a validação.");var initial=new AppState{Remembered=records,PrimaryKey=live.Active.First(d=>d.IsPrimary).Key,TvKey=key};string baseline=LayoutPlanner.Fingerprint(records);var tvState=TvModePlan.Start(initial,live.Active,key);var only=LayoutPlanner.Plan(tvState.Remembered,new[]{key},key);int tvCode=Native.Configure(Native.Build(only,live.Bindings),true,false);
+     var restored=TvModePlan.Restore(tvState);var back=LayoutPlanner.Plan(restored.Remembered,tvState.BeforeTv.Enabled,restored.PrimaryKey);int returnCode=Native.Configure(Native.Build(back,live.Bindings),true,false);var mainEditor=new LayoutEditor(records,key);var primaryPlan=LayoutPlanner.Plan(mainEditor.Normalize(),live.Active.Select(d=>d.Key).Concat(new[]{key}),key);int primaryCode=Native.Configure(Native.Build(primaryPlan,live.Bindings),true,false);
+     bool preserved=LayoutPlanner.Fingerprint(tvState.Remembered)==baseline;Json.Write(args[1],new{ReadOnly=true,HardwareWrites=0,Television=records.First(d=>d.Key==key).Name,TvOnlyValidationCode=tvCode,ReturnValidationCode=returnCode,PrimaryValidationCode=primaryCode,OnlyTvIsPrimary=only.Count==1&&only[0].IsPrimary,ReturnDisplayCount=back.Count,CanonicalMemoryPreserved=preserved});return tvCode==0&&returnCode==0&&primaryCode==0&&preserved?0:2;
+    }
     string data=Option(args,"--data-dir")??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),ProductInfo.AppId);
     if(args.Length>=2&&args[0]=="--ui-smoke"){
      var app=new Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};var desktop=new DesktopApp(data,true);Json.Write(args[1],desktop.SmokeTest());app.Shutdown();return 0;

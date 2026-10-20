@@ -1,11 +1,11 @@
-TelaSync — versão 0.1.1
+TelaSync — versão 0.1.2
 By Fagner Lemes
 
 Windows 10/11 x64 · .NET Framework 4.8
 
 ATUALIZAR A INSTALAÇÃO EXISTENTE
 
-Para passar de 0.1.0 a 0.1.1, use TelaSync-0.1.1-Patch.exe.
+Para passar de 0.1.1 a 0.1.2, use TelaSync-0.1.2-Patch.exe.
 Feche o programa antes, inclusive pelo menu Sair na bandeja.
 O patch troca os arquivos alterados, atualiza a versão no Windows e mantém
 os atalhos, perfis e preferências. Se a gravação falhar, restaura os arquivos
@@ -13,9 +13,31 @@ anteriores tocados pela atualização. Nenhuma reinstalação do zero é necess�
 O patch exige a instalação anterior e não faz downgrade de uma versão posterior.
 
 Para instalar pela primeira vez ou reparar arquivos ausentes, use
-TelaSync-0.1.1-Setup.exe. É uma instalação para o usuário atual, sem administrador,
+TelaSync-0.1.2-Setup.exe. É uma instalação para o usuário atual, sem administrador,
 em %LOCALAPPDATA%\Programs\TelaSync. Atalhos no Desktop e Menu Iniciar são opcionais.
 TelaSync.exe e seu .config também podem ser usados de forma portátil.
+
+JOGAR NA TV E VOLTAR À MESA
+
+O botão Jogar na TV, no topo de Telas, ativa somente a TV como principal e
+desativa todas as outras saídas, inclusive a tela pequena conectada à Intel.
+Não é o comando de Tela preta nem desligamento físico por DDC/CI.
+Antes da mudança guarda as telas ativas, a principal, posições e orientações.
+O retorno respeita se havia três ou quatro telas ativas antes do modo TV.
+
+A TV que se identifica como SAMSUNG é selecionada inicialmente quando há uma
+única correspondência. Confira ou altere em Preferências > Modo TV.
+Ligue a TV e selecione a entrada correta antes de usar Jogar na TV.
+O plano pede confirmação em 15 segundos; sem confirmação solicita reversão.
+
+Voltar à mesa aparece durante o modo TV. Recupera a disposição anterior com
+confirmação, inclusive após fechar e reabrir o TelaSync. Se uma tela necessária
+estiver indisponível, a restauração é recusada antes de aplicar qualquer
+mudança; o registro anterior continua disponível para tentar após reconectar.
+
+Para mudar somente a principal, selecione uma tela ativa e clique em Tornar
+principal nos detalhes. Essa ação mantém as outras telas ativas. O editor
+Organizar telas também permite definir a principal junto com posição e giro.
 
 ORGANIZAR, ORDENAR E ALINHAR AS TELAS
 
@@ -25,6 +47,10 @@ teclado ajustam 10 px; Shift ajusta 1 px e Ctrl ajusta 100 px quando o mapa
 está com foco. Atualizar adota os valores digitados na edição.
 
 É possível trocar os números usados pelo TelaSync e definir a tela principal.
+Os botões ↶ 90° e ↷ 90° giram a tela selecionada no sentido anti-horário ou
+horário. O mapa e o detalhe de orientação mostram a prévia. A rotação só chega
+ao Windows depois de Aplicar disposição e fica salva após a confirmação.
+Uma tela desativada também pode ter sua orientação preparada para a reativação.
 A numeração do TelaSync identifica os painéis dentro do aplicativo; o Windows
 pode usar uma numeração própria. A posição e a tela principal são aplicadas
 no desktop do Windows.
@@ -39,7 +65,11 @@ POSIÇÃO AO DESATIVAR E REATIVAR
 Deixe Preservar posição ao reativar marcado. A memória utiliza a identidade
 do monitor, incluindo coordenadas negativas e orientação. A compactação de
 espaços ao desativar uma tela é temporária e não sobrescreve a disposição salva.
-A memória sobrevive ao fechamento do programa e à atualização para 0.1.1.
+A memória sobrevive ao fechamento do programa e à atualização para 0.1.2.
+Ao reativar, a compactação automática do Windows não substitui a memória salva.
+Um monitor que deixou de ser detectado aparece como Sem conexão; ligue pelo
+botão físico ou confira o cabo antes de Atualizar. Ele não é confundido com
+uma saída conectada que foi desativada no Windows.
 
 Registrar a disposição atual adota a organização feita nas Configurações do
 Windows. Uma tela encontrada desativada antes do primeiro uso recebe uma
@@ -50,16 +80,48 @@ Um processo auxiliar independente solicita reversão quando uma mudança não é
 confirmada ou o aplicativo para durante a operação. A reversão depende de o
 hardware continuar conectado e de o driver aceitar a configuração anterior.
 
-APAGAR SOMENTE O PAINEL SELECIONADO
+TELA PRETA: ALTERNATIVA VISUAL INDIVIDUAL
+
+Clique em Tela preta para cobrir apenas a tela selecionada, sem desconectar,
+desativar saídas, enviar DDC/CI ou alterar a disposição. A iluminação do painel
+continua ligada: esta opção não é repouso real nem promete economia de energia.
+O ponteiro fica oculto quando está sobre a área preta.
+
+A tela permanece preta enquanto você usa mouse e teclado nas outras telas.
+Movimentos, teclas e cliques na área preta não fazem a imagem voltar. Não há
+temporizador de retorno nem monitoramento de atividade global de entrada.
+Para voltar use Acender, Remover tela preta ou o atalho do TelaSync Ctrl+Alt+L.
+Esses comandos retiram a área preta sem enviar energia DDC/CI ao monitor.
+Ao fechar o programa, as áreas pretas são removidas. Uma mudança de disposição
+feita no aplicativo também as remove antes de aplicar. Se o Windows apenas
+notifica telas sem desconectar o alvo, a área preta é mantida e reposicionada.
+Não cobre telas no modo duplicado. Não bloqueia nem protege a sessão do Windows.
+
+REPOUSO SOMENTE DO PAINEL SELECIONADO
 
 Clique em Verificar compatibilidade. O controle usa energia D6 por DDC/CI.
-A versão 0.1.1 prioriza o desligamento explícito (5), quando anunciado pelo
-monitor, seguido de desligamento (4), suspensão (3) ou repouso (2).
-A versão anterior priorizava repouso, que pode retornar com sinal ativo.
-Após apagar, o programa aguarda a estabilização do firmware e verifica o
-desktop sem reler as capacidades DDC/CI do painel.
+A versão 0.1.2 remove o desligamento físico D6=5 usado na 0.1.1, pois ele pode
+fazer o monitor desaparecer e exigir o botão físico. Prioriza espera (2),
+suspensão (3) e, na ausência delas, o estado (4), somente quando anunciados
+junto com o estado ligado (1). Após o comando, aguarda cinco segundos sem
+consultar DDC/CI e compara a disposição das telas. Se ela mudou, tenta acordar
+o mesmo painel pelo identificador físico original, sem escolher outra tela.
 
-Não usa comando global, tela preta nem desativação da saída como substitutos.
+LIMITAÇÃO CONFIRMADA NO BLIZZARD 27' (EDID LHCFFFF)
+Nesta conexão, o estado 4 reacendeu sozinho após cerca de dois segundos,
+mesmo sem consultas ao monitor. O estado 2 não apagou e o estado 3 também
+apagou e reacendeu. O estado 5 desligou fisicamente e exigiu o botão.
+Repouso permanece bloqueado nesse modelo para evitar repetir esses efeitos;
+Acender, brilho e organização continuam independentes desse bloqueio.
+Isso não resolve o repouso individual solicitado para esse painel.
+
+O repouso por inatividade do Windows funciona no conjunto das telas. Este
+programa não chama esse comando global como se fosse individual, para não
+apagar também a tela pequena ligada à Intel. Um retorno de sucesso DDC/CI
+não comprova que o painel apagou ou permaneceu apagado.
+
+Repouso não usa comando global nem desativação da saída como substitutos.
+Tela preta é uma opção separada, explicitamente identificada como simulação visual.
 Se o desktop mudar ao apagar, tenta acender o mesmo painel e informa a
 incompatibilidade. O retorno do driver não comprova visualmente que a tela
 permaneceu apagada. A mensagem de envio deve ser confirmada no painel real.
@@ -118,11 +180,22 @@ assinatura digital de certificado.
 
 VALIDAÇÃO E LIMITES
 
-Os testes usam painéis simulados para confirmar seleção individual, brilho,
-energia e memória. Os planos reais também são verificados com SDC_VALIDATE,
-sem aplicá-los. O efeito físico de apagar/acender e ajustar o brilho ainda
-precisa de confirmação nos monitores. Nenhum teste automatizado envia esses
-comandos físicos nem altera a disposição de trabalho do usuário.
+As verificações de lógica e interface não enviam comandos físicos
+de energia/brilho nem alteram a disposição de trabalho. Os planos reais de
+posição, rotação, TV exclusiva, retorno à mesa e troca direta da principal,
+incluindo as duas GPUs, foram aceitos por SDC_VALIDATE sem aplicá-los.
+Os giros e a troca física para a TV ainda devem ser conferidos no uso real.
+
+Nos diagnósticos assistidos do Blizzard foram testados os estados DDC 2, 3
+e 4, com retorno automático e observação do usuário. A incompatibilidade
+de repouso descrita acima permanece. Não foi repetido o estado físico 5.
+O ajuste real de brilho continua sujeito à aceitação de cada monitor.
+
+A opção Tela preta manual foi confirmada visualmente no Blizzard durante
+12 segundos enquanto o usuário usava as outras telas. O botão Acender do
+próprio aplicativo removeu a área preta sem iniciar processo de energia.
+Foram conferidas a visibilidade, a área exata e a manutenção da topologia.
+Os testes iniciais que não verificavam visibilidade não são usados como prova.
 
 As mudanças exigem desktop estendido. Mudar portas, GPU ou usar monitores
 sem identidade única pode exigir novo registro. Não há editor de resolução/Hz,

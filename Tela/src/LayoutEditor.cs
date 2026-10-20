@@ -11,6 +11,15 @@ namespace Tela {
   public void Move(string key,int x,int y){if(Math.Abs((long)x)>100000||Math.Abs((long)y)>100000)throw new InvalidOperationException("Use coordenadas entre -100000 e 100000.");var d=Find(key);d.X=x;d.Y=y;d.InitialPosition=false;}
   public void Number(string key,int value){if(value<1||value>99)throw new InvalidOperationException("O número da tela deve ficar entre 1 e 99.");var d=Find(key);var other=Displays.FirstOrDefault(r=>r!=d&&r.Number==value);if(other!=null)other.Number=d.Number;d.Number=value;}
   public void MakePrimary(string key){PrimaryKey=key;foreach(var d in Displays)d.IsPrimary=Native.Same(d.Key,key);}
+  public void Rotate(string key,int direction){
+   if(direction!=1&&direction!=-1)throw new ArgumentException("Escolha horário ou anti-horário.");
+   var d=Find(key);var path=Convert.FromBase64String(d.PathData);uint current=Native.U32(path,40);
+   if(current<1||current>4)throw new InvalidOperationException("A orientação atual desta tela não é válida.");
+   Native.Put(path,40,(uint)(((int)current-1+direction+4)%4+1));d.PathData=Convert.ToBase64String(path);
+   int width=d.Width;d.Width=d.Height;d.Height=width;
+   // CCD source modes keep their unrotated dimensions. Only the target rotates.
+   // Keep source/target timing data, identity and all other adapters unchanged.
+  }
   public void Snap(string key,int tolerance){
    var d=Find(key);var others=Displays.Where(r=>r!=d&&!r.InitialPosition).ToList();
    var xs=others.SelectMany(r=>new[]{r.X,r.Right,r.X-d.Width,r.Right-d.Width}).OrderBy(x=>Math.Abs((long)x-d.X)).ToList();

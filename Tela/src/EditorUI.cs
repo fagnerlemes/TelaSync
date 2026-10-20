@@ -14,10 +14,12 @@ namespace Tela {
   double mapScale,mapOx,mapOy,mapMinX,mapMinY;
   TrayController tray;bool forceExit,closingPrompt;
   void InitializeEditor(){
-   Btn("EditLayoutButton").Click+=(s,e)=>{if(busy)return;if(layoutDraft==null)layoutDraft=new LayoutEditor(service.State.Remembered,service.State.PrimaryKey);Render();};
+   Btn("EditLayoutButton").Click+=(s,e)=>{if(busy)return;blanking.HideAll();if(layoutDraft==null)layoutDraft=new LayoutEditor(service.State.Remembered,service.State.PrimaryKey);Render();};
    Btn("CancelLayoutButton").Click+=(s,e)=>CancelEditor();
    Btn("SetPositionButton").Click+=(s,e)=>{try{int x,y,n;if(!Int32.TryParse(Ctrl<TextBox>("XPositionInput").Text,out x)||!Int32.TryParse(Ctrl<TextBox>("YPositionInput").Text,out y)||!Int32.TryParse(Ctrl<TextBox>("NumberInput").Text,out n))throw new InvalidOperationException("Informe números inteiros para X, Y e número da tela.");layoutDraft.Move(selected,x,y);layoutDraft.Number(selected,n);layoutDraft.Snap(selected,0);Render();}catch(Exception ex){Error(ex);}};
    Btn("MakePrimaryButton").Click+=(s,e)=>{if(layoutDraft==null||!service.IsActive(selected))return;layoutDraft.MakePrimary(selected);Render();};
+   Btn("RotateLeftButton").Click+=(s,e)=>RotateSelected(-1);
+   Btn("RotateRightButton").Click+=(s,e)=>RotateSelected(1);
    Btn("ApplyLayoutButton").Click+=async(s,e)=>{if(layoutDraft!=null){var draft=layoutDraft;await Change(()=>service.PrepareArrangement(draft));}};
    var map=Ctrl<Canvas>("MonitorMap");map.Focusable=true;
    map.PreviewMouseMove+=(s,e)=>{
@@ -31,6 +33,7 @@ namespace Tela {
     if(e.Key==Key.Left)dx=-step;else if(e.Key==Key.Right)dx=step;else if(e.Key==Key.Up)dy=-step;else if(e.Key==Key.Down)dy=step;else return;var d=layoutDraft.Find(selected);layoutDraft.Move(selected,d.X+dx,d.Y+dy);RenderMap();RenderDetails();e.Handled=true;
    };
   }
+  void RotateSelected(int direction){if(busy||layoutDraft==null)return;try{layoutDraft.Rotate(selected,direction);Render();}catch(Exception ex){Error(ex);}}
   void CancelEditor(){dragKey=null;Mouse.Capture(null);layoutDraft=null;Render();}
   void StartDrag(Button button,MouseButtonEventArgs e){
    if(layoutDraft==null||busy)return;selected=(string)button.Tag;var d=layoutDraft.Find(selected);dragStart=e.GetPosition(Ctrl<Canvas>("MonitorMap"));dragX=d.X;dragY=d.Y;dragKey=d.Key;dragMoved=false;
@@ -38,7 +41,7 @@ namespace Tela {
   }
   void RenderEditor(){
    bool edit=layoutDraft!=null;Ctrl<StackPanel>("LayoutControls").Visibility=edit?Visibility.Visible:Visibility.Collapsed;Btn("EditLayoutButton").Visibility=edit?Visibility.Collapsed:Visibility.Visible;
-   Ctrl<TextBlock>("MapTitle").Text=edit?"Organizar telas":"Disposição das telas";Ctrl<TextBlock>("MapHint").Text=edit?"Arraste para mudar a ordem e o alinhamento. Setas: 10 px · Shift: 1 px · Ctrl: 100 px. A mudança só vale depois de Aplicar.":"Organize as telas por arraste. A posição fica salva para a próxima ativação.";
+   Ctrl<TextBlock>("MapTitle").Text=edit?"Organizar telas":"Disposição das telas";Ctrl<TextBlock>("MapHint").Text=edit?"Arraste, ajuste as coordenadas ou gire a tela selecionada. Setas: 10 px · Shift: 1 px · Ctrl: 100 px. A mudança só vale depois de Aplicar.":"Organize posição e orientação das telas. A disposição fica salva para a próxima ativação.";
    Ctrl<Canvas>("MonitorMap").Cursor=edit?Cursors.Hand:Cursors.Arrow;
    if(edit){var d=layoutDraft.Find(selected);Ctrl<TextBox>("XPositionInput").Text=d.X.ToString();Ctrl<TextBox>("YPositionInput").Text=d.Y.ToString();Ctrl<TextBox>("NumberInput").Text=d.Number.ToString();Btn("MakePrimaryButton").IsEnabled=!busy&&service.IsActive(selected)&&!Native.Same(selected,layoutDraft.PrimaryKey);}
   }

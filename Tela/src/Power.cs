@@ -44,14 +44,22 @@ namespace Tela {
    if(!m.Success)return new List<uint>();
    return Regex.Matches(m.Groups[1].Value,@"\b[0-9A-Fa-f]{2}\b").Cast<Match>().Select(v=>UInt32.Parse(v.Value,NumberStyles.HexNumber,CultureInfo.InvariantCulture)).Distinct().ToList();
   }
-  public static uint OffValue(List<uint> values) {return !values.Contains(1)?0:values.Contains(5)?5u:values.Contains(4)?4u:values.Contains(3)?3u:values.Contains(2)?2u:0;}
+  public static uint OffValue(List<uint> values) {return !values.Contains(1)?0:values.Contains(2)?2u:values.Contains(3)?3u:values.Contains(4)?4u:0;}
+  public static string SleepIssue(string key){
+   // LHCFFFF (Blizzard 27'): states 3/4 wake again in ~2 s; state 2 does
+   // not blank the panel; state 5 loses the display path and needs its button.
+   // Do not turn this observed incompatibility into a repeated power command.
+   return (key??"").IndexOf("#LHCFFFF#",StringComparison.OrdinalIgnoreCase)>=0?"O Blizzard reacende sozinho após o repouso. Repouso indisponível nesta conexão. Tela preta é uma alternativa visual.":null;
+  }
   public static PowerReport Execute(PowerRequest request,IPowerBackend backend) {
    if(request.Action=="brightness-probe"||request.Action=="brightness-set")return BrightnessPolicy.Execute(request,backend);
    if(!Native.Same(request.Key,backend.Key))throw new InvalidOperationException("Identidade da tela mudou. Nenhum comando foi enviado.");
-   if(request.Action=="probe")return backend.Probe();
+   if(request.Action=="probe"){var probe=backend.Probe();string issue=SleepIssue(request.Key);if(issue!=null){probe.Supported=false;probe.OffValue=0;probe.Message=issue;}return probe;}
    if(request.Action!="sleep"&&request.Action!="wake")throw new ArgumentException("Ação de energia inválida.");
+   if(request.Action=="sleep"&&SleepIssue(request.Key)!=null)return new PowerReport{Key=request.Key,Message=SleepIssue(request.Key)};
    var report=request.Action=="sleep"?backend.Probe():new PowerReport{Key=request.Key,Supported=true};
    if(request.Action=="sleep"&&!report.Supported) {report.Success=false;return report;}
+   if(request.Action=="sleep"&&(report.OffValue<2||report.OffValue>4))return new PowerReport{Key=request.Key,Message="Este painel não anuncia um modo de repouso seguro. Nenhum comando foi enviado."};
    string before=backend.Fingerprint();
    backend.Send(request.Action=="wake"?1:report.OffValue);
    string after=backend.Fingerprint();
@@ -100,11 +108,14 @@ namespace Tela {
   }
   public void Send(uint value) {
    // No monitor-wide broadcast, black overlay or display-disable fallback exists here.
-   var live=Native.Capture(false);if(!live.Active.Any(d=>Native.Same(d.Key,Key)&&Native.Same(d.DeviceName,sourceName)))throw new InvalidOperationException("A tela ou o caminho de conexão mudou. Atualize antes de enviar o comando.");
+   if(value<1||value>4)throw new InvalidOperationException("Desligamento físico bloqueado. Somente ligar e repouso são permitidos.");
+   // Wake recovery must use the original physical handle even when sleep has
+   // removed the target from the current desktop. Never enumerate a new target.
+   if(value!=1){var live=Native.Capture(false);if(!live.Active.Any(d=>Native.Same(d.Key,Key)&&Native.Same(d.DeviceName,sourceName)))throw new InvalidOperationException("A tela ou o caminho de conexão mudou. Atualize antes de enviar o comando.");}
    if(!SetVCPFeature(handles[0].Handle,0xd6,value))throw new Win32Exception(Marshal.GetLastWin32Error(),"O painel não aceitou o comando DDC/CI.");
    // Let the firmware settle before checking desktop topology. Do not query DDC
    // capabilities or the power value after sleep: some panels wake on DDC reads.
-   Thread.Sleep(value==1?600:2200);
+   Thread.Sleep(value==1?600:5000);
   }
   public PowerReport ReadBrightness(){
    uint type,current,maximum;bool ok=GetVCPFeatureAndVCPFeatureReply(handles[0].Handle,0x10,out type,out current,out maximum);

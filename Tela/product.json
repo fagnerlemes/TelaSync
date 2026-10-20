@@ -1,7 +1,7 @@
 {
   "name": "TelaSync",
-  "version": "0.1.1",
-  "patchFrom": "0.1.0",
+  "version": "0.1.2",
+  "patchFrom": "0.1.1",
   "executable": "TelaSync.exe",
   "appId": "TelaSync",
   "publisher": "Fagner Lemes"

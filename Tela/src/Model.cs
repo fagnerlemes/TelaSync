@@ -28,6 +28,8 @@ namespace Tela {
   public List<string> PowerRequestedOff=new List<string>();
   public string PrimaryKey, LastAppliedFingerprint;
   public bool PreservePositions=true, DarkTheme=true;
+  public string TvKey;
+  public NamedProfile BeforeTv;
  }
  public static class Json {
   static JavaScriptSerializer Serializer() { return new JavaScriptSerializer { MaxJsonLength=4*1024*1024, RecursionLimit=60 }; }

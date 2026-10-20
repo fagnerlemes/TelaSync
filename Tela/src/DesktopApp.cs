@@ -36,7 +36,7 @@ namespace Tela {
    Btn("AboutButton").Click+=(s,e)=>About();
    selected=service.State.Remembered.FirstOrDefault(d=>service.IsActive(d.Key)&&!d.IsPrimary)!=null?service.State.Remembered.First(d=>service.IsActive(d.Key)&&!d.IsPrimary).Key:service.Current.Active[0].Key;
    Btn("TelasNav").Click+=(s,e)=>ShowPage("Telas");Btn("PerfisNav").Click+=(s,e)=>ShowPage("Perfis");Btn("AtalhosNav").Click+=(s,e)=>ShowPage("Atalhos");
-   Btn("RefreshButton").Click+=async(s,e)=>await Run(async()=>{await Task.Run(()=>service.Refresh(true));powerReports.Clear();Render();Say("Inventário atualizado. A memória anterior foi preservada.");});
+   Btn("RefreshButton").Click+=async(s,e)=>await Run(async()=>{await Task.Run(()=>service.Refresh(true));blanking.Reconcile(service.Current.Active);powerReports.Clear();Render();Say("Inventário atualizado. A memória anterior foi preservada.");});
    Btn("RememberButton").Click+=(s,e)=>{if(busy)return;try{service.RememberCurrent();Render();Say("Disposição atual registrada. As telas desativadas mantêm a memória anterior.");}catch(Exception ex){Error(ex);}};
    Btn("ThemeButton").Click+=(s,e)=>{service.State.DarkTheme=!service.State.DarkTheme;service.Store.Save(service.State);Theme();Render();};
    Btn("ToggleButton").Click+=async(s,e)=>await Toggle();Btn("PowerButton").Click+=async(s,e)=>await Power("sleep");Btn("WakeButton").Click+=async(s,e)=>await Power("wake");Btn("ProbeButton").Click+=async(s,e)=>await Power("probe");
@@ -48,7 +48,7 @@ namespace Tela {
    Ctrl<Canvas>("MonitorMap").SizeChanged+=(s,e)=>RenderMap();
    Window.SourceInitialized+=(s,e)=>Attach();Window.Closed+=(s,e)=>Detach();
    Window.Loaded+=(s,e)=>NativeTheme.Apply(Window,service.State.DarkTheme);Window.Activated+=(s,e)=>NativeTheme.Apply(Window,service.State.DarkTheme);
-   InitializeEditor();InitializeBrightness();InitializePlatform();Theme();Render();
+   InitializeEditor();InitializeBrightness();InitializePlatform();InitializeBlanking();InitializeTvMode();Theme();Render();
   }
   T Ctrl<T>(string name) where T:class {return (T)Window.FindName(name);}
   static BitmapSource ResourceImage(string name){using(var stream=Assembly.GetExecutingAssembly().GetManifestResourceStream(name)){var image=BitmapFrame.Create(stream,BitmapCreateOptions.PreservePixelFormat,BitmapCacheOption.OnLoad);image.Freeze();return image;}}
@@ -93,7 +93,7 @@ namespace Tela {
     var grid=new Grid();grid.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(33)});grid.ColumnDefinitions.Add(new ColumnDefinition());grid.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});
     var num=new Border{BorderBrush=B("Line"),BorderThickness=new Thickness(1),CornerRadius=new CornerRadius(4),Width=26,Height=24,HorizontalAlignment=HorizontalAlignment.Left,VerticalAlignment=VerticalAlignment.Center,Child=new TextBlock{Text=d.Number.ToString(),FontSize=12,Foreground=B("Ink"),HorizontalAlignment=HorizontalAlignment.Center,VerticalAlignment=VerticalAlignment.Center}};
     var words=new StackPanel();words.Children.Add(Text(d.Name,14,"Ink"));words.Children.Add(Text(d.Width+" × "+d.Height+(d.InitialPosition?" · posição inicial":""),12,"Muted"));Grid.SetColumn(words,1);
-    string status=service.IsActive(d.Key)?(service.State.PowerRequestedOff.Contains(d.Key)?"Apagar solicitado":service.Current.Active.First(a=>Native.Same(a.Key,d.Key)).IsPrimary?"Principal":"Ativa"):"Desativada";
+    string status=service.IsActive(d.Key)?(blanking.Contains(d.Key)?"Tela preta":service.State.PowerRequestedOff.Contains(d.Key)?"Apagar solicitado":service.Current.Active.First(a=>Native.Same(a.Key,d.Key)).IsPrimary?"Principal":"Ativa"):service.IsAvailable(d.Key)?"Desativada":"Sem conexão";
     var label=Text(status,12,"Muted");label.VerticalAlignment=VerticalAlignment.Center;label.Margin=new Thickness(10,0,0,0);label.MaxWidth=98;Grid.SetColumn(label,2);grid.Children.Add(num);grid.Children.Add(words);grid.Children.Add(label);button.Content=grid;button.Click+=(s,e)=>{selected=(string)((Button)s).Tag;Render();};rows.Children.Add(button);
    }
   }
@@ -106,22 +106,24 @@ namespace Tela {
    if(dragKey==null){mapScale=Math.Min((width-32)/Math.Max(1,maxX-minX),(height-32)/Math.Max(1,maxY-minY));mapMinX=minX;mapMinY=minY;mapOx=(width-(maxX-minX)*mapScale)/2;mapOy=(height-(maxY-minY)*mapScale)/2;}
    double scale=mapScale,ox=mapOx,oy=mapOy;minX=mapMinX;minY=mapMinY;
    foreach(var d in displays) {
-    bool active=service.IsActive(d.Key),chosen=Native.Same(d.Key,selected);bool off=service.State.PowerRequestedOff.Contains(d.Key);
+    bool active=service.IsActive(d.Key),chosen=Native.Same(d.Key,selected),visual=blanking.Contains(d.Key);bool off=service.State.PowerRequestedOff.Contains(d.Key)||visual;
     var button=new Button{Width=Math.Max(24,d.Width*scale-4),Height=Math.Max(30,d.Height*scale-4),Padding=new Thickness(2),Background=active?B(off?"Sidebar":chosen?"Soft":"Screen"):B("AppBackground"),BorderBrush=B(chosen?"SelectionAccent":active?"Line":"Muted"),BorderThickness=new Thickness(chosen?2:1),Tag=d.Key};
     var content=new StackPanel{VerticalAlignment=VerticalAlignment.Center};var number=Text(d.Number.ToString(),28,chosen?"AccentInk":"Ink");number.HorizontalAlignment=HorizontalAlignment.Center;content.Children.Add(number);
-    if(button.Width>110){var caption=Text(!active?"Lugar preservado":off?"Apagar solicitado":d.IsPrimary?"Principal":d.Width+" × "+d.Height,11,"Muted");caption.HorizontalAlignment=HorizontalAlignment.Center;caption.TextAlignment=TextAlignment.Center;content.Children.Add(caption);}
+    bool main=layoutDraft!=null?d.IsPrimary:active&&service.Current.Active.First(a=>Native.Same(a.Key,d.Key)).IsPrimary;
+    if(button.Width>110){var caption=Text(!active?"Lugar preservado":visual?"Tela preta":off?"Apagar solicitado":main?"Principal":d.Width+" × "+d.Height,11,"Muted");caption.HorizontalAlignment=HorizontalAlignment.Center;caption.TextAlignment=TextAlignment.Center;content.Children.Add(caption);}
     button.Content=content;button.PreviewMouseLeftButtonDown+=(s,e)=>StartDrag((Button)s,e);AutomationProperties.SetName(button,"Tela "+d.Number+", "+d.Name+", "+(active?"ativa":"desativada, posição lembrada"));Canvas.SetLeft(button,ox+(d.X-minX)*scale+2);Canvas.SetTop(button,oy+(d.Y-minY)*scale+2);button.Click+=(s,e)=>{selected=(string)((Button)s).Tag;Render();};canvas.Children.Add(button);
    }
   }
   void RenderDetails() {
    var d=Selected;var live=service.Current.Active.FirstOrDefault(a=>Native.Same(a.Key,d.Key));
    Ctrl<TextBlock>("SelectedNumber").Text="Tela "+d.Number+" selecionada";Ctrl<TextBlock>("SelectedName").Text=d.Name;Ctrl<TextBlock>("SelectedModel").Text=d.DeviceName;
-   Ctrl<TextBlock>("SelectedStatus").Text=live==null?"Fora do desktop · conexão a verificar":service.State.PowerRequestedOff.Contains(d.Key)?"Apagar solicitado · confira o painel":"Ativa · conectada ao desktop";
+   bool available=service.IsAvailable(d.Key);Ctrl<TextBlock>("SelectedStatus").Text=live==null?available?"Desativada · disponível para reativar":"Sem conexão · ligue pelo botão físico ou confira o cabo":blanking.Contains(d.Key)?"Tela preta · iluminação ligada":service.State.PowerRequestedOff.Contains(d.Key)?"Apagar solicitado · confira o painel":"Ativa · conectada ao desktop";
+   Btn("BlackScreenButton").Content=blanking.Contains(d.Key)?"Remover tela preta":"Tela preta";
    Ctrl<TextBlock>("ResolutionValue").Text=d.Width+" × "+d.Height;Ctrl<TextBlock>("PositionValue").Text=d.InitialPosition?"A registrar":d.X+", "+d.Y;
-   Ctrl<TextBlock>("OrientationValue").Text=d.Height>d.Width?"Vertical":"Horizontal";Ctrl<TextBlock>("CurrentPositionValue").Text=live==null?"Desativada":live.X+", "+live.Y;
+   uint rotation=Native.U32(Convert.FromBase64String(d.PathData),40);Ctrl<TextBlock>("OrientationValue").Text=(d.Height>d.Width?"Vertical":"Horizontal")+" · "+((rotation-1)*90)+"°";Ctrl<TextBlock>("CurrentPositionValue").Text=live==null?available?"Desativada":"Sem conexão":live.X+", "+live.Y;
    Ctrl<TextBlock>("MemoryNote").Text=d.InitialPosition?"A posição será registrada na primeira ativação.":"Volta à posição salva ao reativar.";
-   Btn("ToggleButton").Content=live==null?d.InitialPosition?"Ativar tela":"Reativar na posição salva":"Desativar tela";Ctrl<TextBlock>("ToggleNote").Text=live==null?"Reconecta a tela à área de trabalho.":"Remove esta tela da área de trabalho.";
-   PowerReport report;var support=Ctrl<TextBlock>("PowerSupportLabel");support.Text=powerReports.TryGetValue(d.Key,out report)?report.Message:"Compatibilidade individual ainda não verificada.";support.ToolTip=support.Text;RenderEditor();RenderBrightness();
+   Btn("ToggleButton").Content=live==null?available?d.InitialPosition?"Ativar tela":"Reativar tela":"Sem conexão":"Desativar tela";Ctrl<TextBlock>("ToggleNote").Text=live==null?available?"Reativa a tela na posição salva.":"Após ligar ou reconectar o monitor, clique em Atualizar.":"Desativar remove só esta tela do desktop.";
+   PowerReport report;var support=Ctrl<TextBlock>("PowerSupportLabel");support.Text=PowerPolicy.SleepIssue(d.Key)??(powerReports.TryGetValue(d.Key,out report)?report.Message:"Compatibilidade individual ainda não verificada.");support.ToolTip=support.Text;RenderEditor();RenderBrightness();
   }
   void RenderProfiles() {
    var picker=Ctrl<ComboBox>("ProfilePicker");string old=picker.Text;picker.Items.Clear();foreach(var profile in service.State.Profiles)picker.Items.Add(profile.Name);picker.Text=String.IsNullOrWhiteSpace(old)?service.State.Profiles.First().Name:old;
@@ -132,16 +134,19 @@ namespace Tela {
   void Buttons() {
    bool active=service.IsActive(selected);PowerReport r;bool supported=powerReports.TryGetValue(selected,out r)&&r.Supported;
    foreach(string name in new[]{"ToggleButton","ProbeButton","WakeButton","PowerButton","RememberButton","ApplyProfileButton","SaveProfileButton","RefreshButton","ThemeButton","EditLayoutButton","ApplyLayoutButton","CancelLayoutButton","SetPositionButton"})Btn(name).IsEnabled=!busy;
-   Btn("PowerButton").IsEnabled=!busy&&active&&supported;Btn("WakeButton").IsEnabled=!busy&&active;Btn("ProbeButton").IsEnabled=!busy&&active;
-   Btn("ToggleButton").IsEnabled=!busy&&(!active||service.Current.Active.Count>1);Ctrl<CheckBox>("PreserveCheck").IsEnabled=!busy;Ctrl<TextBlock>("OperationStatus").Text=busy?"Operação em andamento…":"Aguardando uma ação";
+   Btn("PowerButton").IsEnabled=!busy&&active&&supported&&PowerPolicy.SleepIssue(selected)==null&&!blanking.Contains(selected);Btn("WakeButton").IsEnabled=!busy&&(active||blanking.Contains(selected));Btn("ProbeButton").IsEnabled=!busy&&active;
+   Btn("BlackScreenButton").IsEnabled=!busy&&active&&layoutDraft==null&&!service.State.PowerRequestedOff.Contains(selected);
+   Btn("ToggleButton").IsEnabled=!busy&&(active?service.Current.Active.Count>1:service.IsAvailable(selected));Ctrl<CheckBox>("PreserveCheck").IsEnabled=!busy;Ctrl<TextBlock>("OperationStatus").Text=busy?"Operação em andamento…":"Aguardando uma ação";
    if(layoutDraft!=null){foreach(string name in new[]{"ToggleButton","RememberButton","ApplyProfileButton","SaveProfileButton","RefreshButton","PowerButton","WakeButton","ProbeButton"})Btn(name).IsEnabled=false;}
    RenderBrightness();Ctrl<StackPanel>("LayoutControls").IsEnabled=!busy;
    Ctrl<StackPanel>("DisplayRows").IsEnabled=!busy;Ctrl<Canvas>("MonitorMap").IsEnabled=!busy;Ctrl<StackPanel>("ProfileRows").IsEnabled=!busy;
+   RenderTvMode();
   }
   async Task Run(Func<Task> action) {if(busy)return;busy=true;Buttons();try{await action();}catch(Exception e){Error(e);}finally{busy=false;Render();}}
   async Task Toggle(){string key=selected;await Change(()=>service.PrepareToggle(key));}
-  async Task Change(Func<PreparedChange> prepare) {
+  async Task Change(Func<PreparedChange> prepare,string successMessage=null) {
    await Run(async()=>{
+    blanking.HideAll();
     Say("Validando a configuração no Windows…");PreparedChange change=await Task.Run(prepare);RecoveryGuard guard=null;bool accepted=false;
     Exception failure=null;
     try {
@@ -149,7 +154,7 @@ namespace Tela {
      Say("Aplicando layout temporário…");Native.Check(await Task.Run(()=>Native.Configure(change.Proposed,false,false)),"Não foi possível aplicar o layout");
      var actual=await Task.Run(()=>Native.Capture(false));if(LayoutPlanner.Fingerprint(actual.Active)!=LayoutPlanner.Fingerprint(change.Desired))throw new InvalidOperationException("O driver não manteve as posições solicitadas. A configuração anterior será restaurada.");
      KeepWindowVisible(actual.Active);var confirm=new ConfirmationWindow();confirm.Owner=Window;bool keep=confirm.ShowDialog()==true;
-     if(keep){await Task.Run(()=>guard.Commit(()=>{Native.Check(Native.Configure(change.Proposed,false,true),"Não foi possível salvar o layout no Windows");service.Accept(change);}));accepted=true;bool edited=layoutDraft!=null;layoutDraft=null;Say(edited?"Nova disposição confirmada e salva na memória de posição.":"Layout confirmado. A memória original das posições foi preservada.");}
+     if(keep){await Task.Run(()=>guard.Commit(()=>{Native.Check(Native.Configure(change.Proposed,false,true),"Não foi possível salvar o layout no Windows");service.Accept(change);}));accepted=true;bool edited=layoutDraft!=null;layoutDraft=null;Say(successMessage??(edited?"Nova disposição confirmada e salva na memória de posição.":"Layout confirmado. A memória original das posições foi preservada."));}
      else {await Task.Run(()=>guard.Revert());Say("A configuração anterior foi solicitada. Nenhuma nova posição foi registrada.");}
     }catch(Exception e){failure=e;}
     if(failure!=null&&guard!=null&&!accepted)try{await Task.Run(()=>guard.Revert());}catch(Exception e){service.Store.Log("Reversão falhou: "+e);failure=new InvalidOperationException(failure.Message+" A reversão também não foi confirmada pelo Windows. Confira a disposição nas Configurações de Tela.",failure);}
@@ -159,19 +164,20 @@ namespace Tela {
   }
   async Task Power(string action) {
    string key=selected;
+   if(action=="wake"&&blanking.Hide(key)){Say("Tela preta removida da tela selecionada. Nenhum comando de energia foi enviado.");return;}
    await Run(async()=>{
     if(action!="probe")MoveAwayFrom(key);
     Say(action=="probe"?"Consultando o suporte individual desta tela…":"Enviando comando somente ao painel selecionado…");
     var result=await power.Execute(key,action);powerReports[key]=result;Say(result.Message);
     if(result.Success&&action!="probe"){service.State.PowerRequestedOff.RemoveAll(k=>Native.Same(k,key));if(result.RequestedOff)service.State.PowerRequestedOff.Add(key);service.Store.Save(service.State);}
-    await Task.Run(()=>service.Refresh(false));Render();
+    await Task.Run(()=>service.Refresh(false));blanking.Reconcile(service.Current.Active);Render();
    });
   }
   void Attach() {
    if(preview)return;NativeTheme.Apply(Window,service.State.DarkTheme);tray=new TrayController(()=>Window.Dispatcher.BeginInvoke(new Action(ShowMainWindow)),()=>Window.Dispatcher.BeginInvoke(new Action(ExitFromTray)),true);tray.Theme(service.State.DarkTheme);source=HwndSource.FromHwnd(new WindowInteropHelper(Window).Handle);source.AddHook(Hook);
    bool p=Native.RegisterHotKey(source.Handle,1,0x4003,0x50),l=Native.RegisterHotKey(source.Handle,2,0x4003,0x4C),d=Native.RegisterHotKey(source.Handle,3,0x4003,0x44);
    Ctrl<TextBlock>("HotkeyStatus").Text=p&&l&&d?"Atalhos ativos enquanto o aplicativo estiver aberto. Agem na tela selecionada.":"Um ou mais atalhos já estão em uso por outro aplicativo. Os botões continuam disponíveis.";
-   refreshTimer=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(650)};refreshTimer.Tick+=async(s,e)=>{refreshTimer.Stop();if(busy)return;await Run(async()=>{await Task.Run(()=>service.Refresh(false));powerReports.Clear();Render();});};
+   refreshTimer=new DispatcherTimer{Interval=TimeSpan.FromMilliseconds(650)};refreshTimer.Tick+=async(s,e)=>{refreshTimer.Stop();if(busy)return;await Run(async()=>{await Task.Run(()=>service.Refresh(false));blanking.Reconcile(service.Current.Active);powerReports.Clear();Render();});};
   }
   IntPtr Hook(IntPtr hwnd,int msg,IntPtr w,IntPtr l,ref bool handled) {
    if((uint)msg==NativeTheme.ShowMessage){ShowMainWindow();handled=true;}
@@ -179,7 +185,7 @@ namespace Tela {
    if(msg==0x312&&!busy){handled=true;if(layoutDraft!=null){Say("Aplique ou cancele a edição de disposição antes de usar esse atalho.");return IntPtr.Zero;}Window.Dispatcher.BeginInvoke(new Action(async()=>{if(w.ToInt32()==1)await Power("sleep");if(w.ToInt32()==2)await Power("wake");if(w.ToInt32()==3)await Toggle();}));}
    return IntPtr.Zero;
   }
-  void Detach(){if(tray!=null){tray.Dispose();tray=null;}if(source!=null){for(int i=1;i<=3;i++)Native.UnregisterHotKey(source.Handle,i);source.RemoveHook(Hook);}if(refreshTimer!=null)refreshTimer.Stop();}
+  void Detach(){blanking.Dispose();if(tray!=null){tray.Dispose();tray=null;}if(source!=null){for(int i=1;i<=3;i++)Native.UnregisterHotKey(source.Handle,i);source.RemoveHook(Hook);}if(refreshTimer!=null)refreshTimer.Stop();}
   [DllImport("user32.dll")]static extern bool SetWindowPos(IntPtr window,IntPtr after,int x,int y,int width,int height,uint flags);
   void KeepWindowVisible(List<DisplayRecord> active) {
    if(preview||active.Count==0)return;var point=Window.PointToScreen(new Point(Math.Max(0,Window.ActualWidth/2),Math.Max(0,Window.ActualHeight/2)));
@@ -198,7 +204,7 @@ namespace Tela {
   }
   public void PreviewTheme(bool dark){service.State.DarkTheme=dark;Theme();Render();}
   public void PreviewPage(string name){if(name=="editor")Btn("EditLayoutButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else if(name=="settings")ShowPage("Preferências");}
-  public void RenderPreview(string output,int width=1380,int height=1140) {
+  public void RenderPreview(string output,int width=1380,int height=1200) {
    var root=Ctrl<Grid>("RootView");Window.Content=null;TextElement.SetForeground(root,B("Ink"));TextElement.SetFontFamily(root,Window.FontFamily);root.Margin=new Thickness(0);root.Width=width;root.Height=height;root.Measure(new Size(width,height));root.Arrange(new Rect(0,0,width,height));root.UpdateLayout();RenderMap();root.UpdateLayout();
    var image=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);image.Render(root);var png=new PngBitmapEncoder();png.Frames.Add(BitmapFrame.Create(image));using(var stream=File.Create(output))png.Save(stream);
   }
@@ -211,7 +217,7 @@ namespace Tela {
    check(Window.Icon!=null&&Ctrl<Image>("BrandIcon").Source!=null,"application icon embedded");
    check(Ctrl<System.Windows.Shapes.Rectangle>("AuthorSignature").OpacityMask!=null,"author signature embedded");
    check(!Btn("PowerButton").IsEnabled,"power blocked until individual compatibility is known");
-   var active=service.Current.Active.First();selected=active.Key;Render();check(Ctrl<TextBlock>("SelectedModel").Text==active.DeviceName,"selection updates inspector");
+   var active=service.Current.Active.First(d=>d.IsPrimary);selected=active.Key;Render();check(Ctrl<TextBlock>("SelectedModel").Text==active.DeviceName,"selection updates inspector");
    bool original=service.State.DarkTheme;Btn("ThemeButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(service.State.DarkTheme!=original,"theme switch changes state");Btn("ThemeButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
    Ctrl<ComboBox>("ProfilePicker").Text="Teste de interface";Btn("SaveProfileButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(service.State.Profiles.Any(p=>p.Name=="Teste de interface"),"save profile uses native current inventory");
    Btn("PerfisNav").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(Ctrl<FrameworkElement>("ProfilesPage").Visibility==Visibility.Visible,"profiles navigation");
@@ -219,14 +225,20 @@ namespace Tela {
    Btn("TelasNav").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(Ctrl<FrameworkElement>("MonitorsPage").Visibility==Visibility.Visible,"return to monitors");
    Btn("SettingsNav").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(Ctrl<FrameworkElement>("SettingsPage").Visibility==Visibility.Visible,"startup and tray preferences navigation");Btn("TelasNav").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
    string saved=LayoutPlanner.Fingerprint(service.State.Remembered);Btn("EditLayoutButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(layoutDraft!=null&&Ctrl<StackPanel>("LayoutControls").Visibility==Visibility.Visible,"layout editor opens without changing hardware");
-   int number=layoutDraft.Find(selected).Number;Ctrl<TextBox>("XPositionInput").Text="100";Ctrl<TextBox>("YPositionInput").Text="200";Ctrl<TextBox>("NumberInput").Text=number.ToString();Btn("SetPositionButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(layoutDraft.Find(selected).X!=service.State.Remembered.First(d=>Native.Same(d.Key,selected)).X,"coordinate controls update the draft");
+   int number=layoutDraft.Find(selected).Number;Ctrl<TextBox>("XPositionInput").Text=(layoutDraft.Displays.Max(d=>d.Right)+100).ToString();Ctrl<TextBox>("YPositionInput").Text=(layoutDraft.Displays.Max(d=>d.Bottom)+100).ToString();Ctrl<TextBox>("NumberInput").Text=number.ToString();Btn("SetPositionButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(layoutDraft.Find(selected).X!=service.State.Remembered.First(d=>Native.Same(d.Key,selected)).X,"coordinate controls update the draft");
+   uint rotationBefore=Native.U32(Convert.FromBase64String(layoutDraft.Find(selected).PathData),40);Btn("RotateRightButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(Native.U32(Convert.FromBase64String(layoutDraft.Find(selected).PathData),40)!=rotationBefore&&Ctrl<TextBlock>("OrientationValue").Text.Contains("°"),"rotation control updates map draft and orientation label");Btn("RotateLeftButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(Native.U32(Convert.FromBase64String(layoutDraft.Find(selected).PathData),40)==rotationBefore,"opposite rotation control returns the draft orientation");
    Btn("CancelLayoutButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(layoutDraft==null&&LayoutPlanner.Fingerprint(service.State.Remembered)==saved,"cancelling layout preserves saved arrangement");
+   check(Ctrl<ComboBox>("TvPicker").Items.Count==service.State.Remembered.Count,"TV preference lists every remembered display");
+   check(Btn("SetPrimaryDirectButton").Content.ToString()=="Principal"&&!Btn("SetPrimaryDirectButton").IsEnabled,"direct primary control identifies the current primary without entering the editor");
+   if(service.State.TvKey!=null&&service.State.BeforeTv==null){var originalState=service.State;var activeList=service.Current.Active;service.State=TvModePlan.Start(originalState,activeList,originalState.TvKey);service.Current.Active=LayoutPlanner.Plan(service.State.Remembered,new[]{originalState.TvKey},originalState.TvKey);selected=originalState.TvKey;Render();check(Btn("RestoreWorkspaceButton").Visibility==Visibility.Visible&&Btn("RestoreWorkspaceButton").IsEnabled&&!Btn("TvModeButton").IsEnabled,"TV-only view offers return and protects the original backup from being replaced");service.State=originalState;service.Current.Active=activeList;selected=active.Key;Render();}
+   check(Ctrl<TextBlock>("SelectedStatus").Text.IndexOf("Tela preta",StringComparison.Ordinal)<0&&blanking.Count==0,"UI tests never cover the user monitors");
+   if(service.Current.Active.Count>1){var activeList=service.Current.Active;var known=service.KnownBindings;service.Current.Active=activeList.Where(d=>!Native.Same(d.Key,selected)).ToList();service.KnownBindings=known.Where(b=>!Native.Same(b.Key,selected)).ToList();Render();check(!Btn("ToggleButton").IsEnabled&&Ctrl<TextBlock>("SelectedStatus").Text.StartsWith("Sem conexão"),"physically unavailable display is not offered as a disabled output");service.KnownBindings=known;Render();check(Btn("ToggleButton").IsEnabled,"connected disabled output can be reactivated");service.Current.Active=activeList;Render();}
    check(!Ctrl<Slider>("BrightnessSlider").IsEnabled&&!Btn("ApplyBrightnessButton").IsEnabled,"brightness writes blocked until a per-monitor read succeeds");
    Ctrl<ComboBox>("ProfilePicker").ApplyTemplate();var field=(TextBox)Ctrl<ComboBox>("ProfilePicker").Template.FindName("PART_EditableTextBox",Ctrl<ComboBox>("ProfilePicker"));check(field!=null&&((SolidColorBrush)field.Background).Color==((SolidColorBrush)B("Panel")).Color,"editable profile field follows the active theme");
    new WindowInteropHelper(Window).EnsureHandle();NativeTheme.Apply(Window,service.State.DarkTheme);int nativeDark=NativeTheme.ReadDark(Window),caption=NativeTheme.ReadCaption(Window);check(nativeDark<0||nativeDark==(service.State.DarkTheme?1:0),"native title bar follows the chosen theme when supported");
    if(caption>=0){var color=((SolidColorBrush)B("Panel")).Color;check(caption==(color.R|(color.G<<8)|(color.B<<16)),"Windows 11 caption uses the panel color");}
    using(var testTray=new TrayController(()=>{},()=>{},false)){testTray.Theme(service.State.DarkTheme);check(!testTray.Visible&&testTray.MenuItems==3,"tray icon has open and quit actions and disposes without a visible test icon");}
-   var root=Ctrl<Grid>("RootView");root.Measure(new Size(1380,1140));root.Arrange(new Rect(0,0,1380,1140));root.UpdateLayout();var primaryText=VisualText(Btn("EditLayoutButton"));check(primaryText!=null&&((SolidColorBrush)primaryText.Foreground).Color==((SolidColorBrush)B("PrimaryInk")).Color,"primary button text uses its own high-contrast foreground");
+   Ctrl<TextBlock>("Feedback").Visibility=Visibility.Collapsed;var root=Ctrl<Grid>("RootView");root.Measure(new Size(1380,1200));root.Arrange(new Rect(0,0,1380,1200));root.UpdateLayout();var primaryText=VisualText(Btn("EditLayoutButton"));check(primaryText!=null&&((SolidColorBrush)primaryText.Foreground).Color==((SolidColorBrush)B("PrimaryInk")).Color,"primary button text uses its own high-contrast foreground");
    check(Ctrl<ScrollViewer>("MainScroll").ScrollableHeight<1,"standard window fits controls without a page scrollbar");
    check(Window.WindowStyle==WindowStyle.None&&System.Windows.Shell.WindowChrome.GetWindowChrome(Window).CaptionHeight==56&&System.Windows.Shell.WindowChrome.GetIsHitTestVisibleInChrome(Btn("WindowCloseButton")),"custom caption removes the system white strip and keeps interactive window controls");
    return new{Passed=checks.Count,Failed=0,Tests=checks,HardwareWrites=0};

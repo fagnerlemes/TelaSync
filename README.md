@@ -1,15 +1,15 @@
-# TelaSync 0.1.1
+# TelaSync 0.1.2
 
 Versão histórica do TelaSync. **By Fagner Lemes.**
 
 Prefira a [versão atual 0.1.3](https://github.com/fagnerlemes/TelaSync/releases/tag/v0.1.3).
 
-- Editor de posições e ordem das telas; brilho individual por DDC/CI.
-- Interface azul-marinho com ciano/violeta, melhorias do tema claro e dos campos.
-- Bandeja, opção de início com o Windows e atualização por patch.
+- Tela preta manual individual, mantida enquanto mouse/teclado são usados nas outras telas.
+- Jogar na TV, retorno à disposição anterior, escolha de tela principal e giro de 90° nos dois sentidos.
+- Remoção do desligamento físico D6=5; repouso bloqueado no Blizzard incompatível.
 
-**Limitação desta versão:** o controle de energia pode desligar fisicamente o painel e exigir seu botão para voltar. A versão atual remove esse comando e oferece Tela preta manual como alternativa visual.
+**Limitação desta versão:** o modo TV pode restaurar a mesa após o prazo da confirmação temporizada. A 0.1.3 corrige esse retorno e oferece **Voltar ao normal** explícito.
 
-**Downloads:** instalador completo para primeira instalação; **Patch.exe** somente para atualizar da **0.1.0**; ZIP portátil e ZIP fontes. Feche o aplicativo pela bandeja antes de atualizar. Perfis e preferências são preservados pelo patch.
+**Downloads:** instalador completo; **Patch.exe** da **0.1.1 → 0.1.2**; ZIP portátil e código-fonte. Feche o aplicativo pela bandeja antes do patch; seus perfis e preferências são preservados.
 
-Confira os arquivos com **SHA256SUMS.txt**. O ZIP fontes original inclui a base 0.1.0 usada para gerar o patch. A tag importa somente os fontes do aplicativo; os binários ficam nos anexos.
+Tela preta mantém a iluminação do painel, sem economia de energia. Rotação e troca física de TV dependem do driver e precisam de conferência no uso real. Confira os anexos com **SHA256SUMS.txt**.
