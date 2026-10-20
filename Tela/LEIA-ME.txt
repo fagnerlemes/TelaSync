@@ -1,11 +1,11 @@
-TelaSync — versão 0.1.2
+TelaSync — versão 0.1.3
 By Fagner Lemes
 
 Windows 10/11 x64 · .NET Framework 4.8
 
 ATUALIZAR A INSTALAÇÃO EXISTENTE
 
-Para passar de 0.1.1 a 0.1.2, use TelaSync-0.1.2-Patch.exe.
+Para passar de 0.1.2 a 0.1.3, use TelaSync-0.1.3-Patch.exe.
 Feche o programa antes, inclusive pelo menu Sair na bandeja.
 O patch troca os arquivos alterados, atualiza a versão no Windows e mantém
 os atalhos, perfis e preferências. Se a gravação falhar, restaura os arquivos
@@ -13,11 +13,11 @@ anteriores tocados pela atualização. Nenhuma reinstalação do zero é necess�
 O patch exige a instalação anterior e não faz downgrade de uma versão posterior.
 
 Para instalar pela primeira vez ou reparar arquivos ausentes, use
-TelaSync-0.1.2-Setup.exe. É uma instalação para o usuário atual, sem administrador,
+TelaSync-0.1.3-Setup.exe. É uma instalação para o usuário atual, sem administrador,
 em %LOCALAPPDATA%\Programs\TelaSync. Atalhos no Desktop e Menu Iniciar são opcionais.
 TelaSync.exe e seu .config também podem ser usados de forma portátil.
 
-JOGAR NA TV E VOLTAR À MESA
+JOGAR NA TV E VOLTAR AO NORMAL
 
 O botão Jogar na TV, no topo de Telas, ativa somente a TV como principal e
 desativa todas as outras saídas, inclusive a tela pequena conectada à Intel.
@@ -28,10 +28,13 @@ O retorno respeita se havia três ou quatro telas ativas antes do modo TV.
 A TV que se identifica como SAMSUNG é selecionada inicialmente quando há uma
 única correspondência. Confira ou altere em Preferências > Modo TV.
 Ligue a TV e selecione a entrada correta antes de usar Jogar na TV.
-O plano pede confirmação em 15 segundos; sem confirmação solicita reversão.
+Na 0.1.3, o modo TV é aplicado e salvo imediatamente após validação, sem a
+confirmação temporizada de 15 segundos que fazia a troca da 0.1.2 voltar.
+Mouse, teclado, atalhos de tela e minimizar para a bandeja não restauram as
+outras telas. Os controles de outro layout ficam bloqueados durante o modo TV.
 
-Voltar à mesa aparece durante o modo TV. Recupera a disposição anterior com
-confirmação, inclusive após fechar e reabrir o TelaSync. Se uma tela necessária
+Voltar ao normal aparece durante o modo TV. Recupera e salva a disposição
+anterior ao clicar, inclusive após fechar e reabrir o TelaSync. Se uma tela necessária
 estiver indisponível, a restauração é recusada antes de aplicar qualquer
 mudança; o registro anterior continua disponível para tentar após reconectar.
 
@@ -65,7 +68,7 @@ POSIÇÃO AO DESATIVAR E REATIVAR
 Deixe Preservar posição ao reativar marcado. A memória utiliza a identidade
 do monitor, incluindo coordenadas negativas e orientação. A compactação de
 espaços ao desativar uma tela é temporária e não sobrescreve a disposição salva.
-A memória sobrevive ao fechamento do programa e à atualização para 0.1.2.
+A memória sobrevive ao fechamento do programa e à atualização para 0.1.3.
 Ao reativar, a compactação automática do Windows não substitui a memória salva.
 Um monitor que deixou de ser detectado aparece como Sem conexão; ligue pelo
 botão físico ou confira o cabo antes de Atualizar. Ele não é confundido com
@@ -100,7 +103,7 @@ Não cobre telas no modo duplicado. Não bloqueia nem protege a sessão do Windo
 REPOUSO SOMENTE DO PAINEL SELECIONADO
 
 Clique em Verificar compatibilidade. O controle usa energia D6 por DDC/CI.
-A versão 0.1.2 remove o desligamento físico D6=5 usado na 0.1.1, pois ele pode
+A versão 0.1.3 remove o desligamento físico D6=5 usado na 0.1.1, pois ele pode
 fazer o monitor desaparecer e exigir o botão físico. Prioriza espera (2),
 suspensão (3) e, na ausência delas, o estado (4), somente quando anunciados
 junto com o estado ligado (1). Após o comando, aguarda cinco segundos sem
@@ -146,6 +149,11 @@ acesos antes da consulta para evitar despertá-los com uma leitura de brilho.
 BANDEJA E INICIALIZAÇÃO DO WINDOWS
 
 Ao fechar pelo X, escolha Minimizar para bandeja, Fechar programa ou Cancelar.
+Marque Memorizar minha escolha antes de escolher Minimizar para bandeja para
+que os próximos cliques no X mandem a janela direto à bandeja. Se memorizar
+Fechar programa, o X passará a encerrar. Cancelar nunca memoriza uma ação.
+Em Preferências, marque Perguntar ao fechar a janela para reativar a pergunta.
+Ao desmarcar, a última ação memorizada é usada; o padrão é minimizar à bandeja.
 Clique duas vezes no ícone da bandeja para abrir a janela. O menu da bandeja
 oferece Abrir TelaSync e Sair. Sair encerra o programa diretamente.
 
@@ -185,6 +193,10 @@ de energia/brilho nem alteram a disposição de trabalho. Os planos reais de
 posição, rotação, TV exclusiva, retorno à mesa e troca direta da principal,
 incluindo as duas GPUs, foram aceitos por SDC_VALIDATE sem aplicá-los.
 Os giros e a troca física para a TV ainda devem ser conferidos no uso real.
+Na 0.1.3 foram testados a persistência da escolha de fechamento, o evento real
+de fechar para a bandeja e a preservação de uma troca confirmada mesmo após
+o prazo do processo de recuperação. A validação dos planos de TV confere que
+entrar e voltar não exigem mais a caixa temporizada.
 
 Nos diagnósticos assistidos do Blizzard foram testados os estados DDC 2, 3
 e 4, com retorno automático e observação do usuário. A incompatibilidade
@@ -214,3 +226,4 @@ Energia D6 e diferenças entre monitores:
 https://www.nirsoft.net/utils/control_my_monitor.html
 Barra de título nativa:
 https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/ui/apply-windows-themes
+

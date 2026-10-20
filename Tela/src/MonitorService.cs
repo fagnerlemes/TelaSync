@@ -8,6 +8,7 @@ namespace Tela {
   public TopologyImage Proposed;
   public List<DisplayRecord> Desired;
   public AppState NewState;
+  public bool RequireConfirmation=true;
  }
  public sealed class MonitorService {
   public readonly StateStore Store;
@@ -55,10 +56,10 @@ namespace Tela {
   public PreparedChange PrepareTvMode(){
    var live=Native.Capture(true);RequireExtended(live);string key=State.TvKey;
    if(!live.Bindings.Any(b=>Native.Same(b.Key,key)&&b.Available))throw new InvalidOperationException("Ligue ou reconecte a TV e clique em Atualizar. Nenhuma tela foi desativada.");
-   var updated=TvModePlan.Start(State,live.Active,key);return Prepare(live,updated,new[]{key},key);
+   var updated=TvModePlan.Start(State,live.Active,key);var change=Prepare(live,updated,new[]{key},key);change.RequireConfirmation=false;return change;
   }
   public PreparedChange PrepareReturnFromTv(){
-   var live=Native.Capture(true);RequireExtended(live);var enabled=State.BeforeTv==null?null:State.BeforeTv.Enabled;var updated=TvModePlan.Restore(State);return Prepare(live,updated,enabled,updated.PrimaryKey);
+   var live=Native.Capture(true);RequireExtended(live);var enabled=State.BeforeTv==null?null:State.BeforeTv.Enabled;var updated=TvModePlan.Restore(State);var change=Prepare(live,updated,enabled,updated.PrimaryKey);change.RequireConfirmation=false;return change;
   }
   public PreparedChange PreparePrimary(string key){
    var live=Native.Capture(true);RequireExtended(live);if(!live.Active.Any(d=>Native.Same(d.Key,key)))throw new InvalidOperationException("Ative esta tela antes de defini-la como principal, ou use Jogar na TV.");

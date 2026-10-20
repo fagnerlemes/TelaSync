@@ -81,9 +81,11 @@ namespace Tela {
  public enum CloseChoice {Cancel,Tray,Exit}
  public sealed class CloseChoiceWindow:Window {
   public CloseChoice Choice=CloseChoice.Cancel;
+  public readonly CheckBox RememberCheck=new CheckBox{Content="Memorizar minha escolha",Margin=new Thickness(0,0,0,20)};
+  public bool RememberChoice {get{return RememberCheck.IsChecked==true;}}
   public CloseChoiceWindow(Window owner,bool dark){
-   Owner=owner;Title="Fechar "+ProductInfo.Name;Width=560;Height=255;ResizeMode=ResizeMode.NoResize;WindowStartupLocation=WindowStartupLocation.CenterOwner;ShowInTaskbar=false;FontFamily=new FontFamily("Segoe UI");Background=(Brush)Application.Current.FindResource("Panel");Foreground=(Brush)Application.Current.FindResource("Ink");
-   var panel=new StackPanel{Margin=new Thickness(26)};panel.Children.Add(new TextBlock{Text="Como deseja fechar a janela?",FontSize=21,FontWeight=FontWeights.SemiBold});panel.Children.Add(new TextBlock{Text="Na bandeja, o TelaSync continua disponível pelos atalhos e pelo ícone ao lado do relógio.",Foreground=(Brush)Application.Current.FindResource("Muted"),Margin=new Thickness(0,12,0,22)});
+   Owner=owner;Title="Fechar "+ProductInfo.Name;Width=600;Height=300;ResizeMode=ResizeMode.NoResize;WindowStartupLocation=WindowStartupLocation.CenterOwner;ShowInTaskbar=false;FontFamily=new FontFamily("Segoe UI");Background=(Brush)Application.Current.FindResource("Panel");Foreground=(Brush)Application.Current.FindResource("Ink");
+   var panel=new StackPanel{Margin=new Thickness(26)};panel.Children.Add(new TextBlock{Text="Como deseja fechar a janela?",FontSize=21,FontWeight=FontWeights.SemiBold});panel.Children.Add(new TextBlock{Text="Na bandeja, o TelaSync continua disponível pelo ícone ao lado do relógio. Você pode voltar a perguntar em Preferências.",TextWrapping=TextWrapping.Wrap,Foreground=(Brush)Application.Current.FindResource("Muted"),Margin=new Thickness(0,12,0,18)});panel.Children.Add(RememberCheck);
    var buttons=new StackPanel{Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right};
    var cancel=new Button{Content="Cancelar",IsCancel=true};var exit=new Button{Content="Fechar programa",Margin=new Thickness(8,0,0,0)};var tray=new Button{Content="Minimizar para bandeja",IsDefault=true,Margin=new Thickness(8,0,0,0),Style=(Style)Application.Current.FindResource("PrimaryButton")};
    cancel.Click+=(s,e)=>{Choice=CloseChoice.Cancel;DialogResult=false;};exit.Click+=(s,e)=>{Choice=CloseChoice.Exit;DialogResult=true;};tray.Click+=(s,e)=>{Choice=CloseChoice.Tray;DialogResult=true;};buttons.Children.Add(cancel);buttons.Children.Add(exit);buttons.Children.Add(tray);panel.Children.Add(buttons);Content=panel;SourceInitialized+=(s,e)=>NativeTheme.Apply(this,dark);

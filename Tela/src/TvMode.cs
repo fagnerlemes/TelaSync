@@ -11,7 +11,7 @@ namespace Tela {
    var candidates=all.Where(d=>Native.Same(d.Model,"SAMSUNG")).ToList();return candidates.Count==1?candidates[0].Key:null;
   }
   public static AppState Start(AppState state,List<DisplayRecord> active,string tvKey){
-   if(state.BeforeTv!=null)throw new InvalidOperationException("Volte à mesa antes de iniciar outro modo TV. A disposição anterior continua guardada.");
+   if(state.BeforeTv!=null)throw new InvalidOperationException("Volte ao normal antes de iniciar outro modo TV. A disposição anterior continua guardada.");
    if(!state.Remembered.Any(d=>Native.Same(d.Key,tvKey)))throw new InvalidOperationException("Escolha a TV em Preferências.");
    if(active.Count==0)throw new InvalidOperationException("Não há uma disposição atual para guardar.");
    var updated=Json.Clone(state);var snapshot=Json.Clone(state);MemoryLayout.Merge(snapshot,active,true);
@@ -28,3 +28,4 @@ namespace Tela {
   }
  }
 }
+

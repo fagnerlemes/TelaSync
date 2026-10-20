@@ -1,0 +1,30 @@
+name: Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Compilar aplicativo e instalador
+        shell: powershell
+        run: |
+          & .\Tela\installer\build-installer.ps1 -OutputDirectory "$env:RUNNER_TEMP\TelaSync"
+      - name: Verificar logica sem alterar monitores
+        shell: powershell
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'TelaSync\TelaSync.exe'
+          $reportPath = Join-Path $env:RUNNER_TEMP 'TelaSync\self-test.json'
+          $process = Start-Process -FilePath $exe -ArgumentList @('--self-test', ('"' + $reportPath + '"')) -Wait -PassThru -WindowStyle Hidden
+          if ($process.ExitCode -ne 0) { throw 'O processo de teste falhou.' }
+          $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
+          if ($null -eq $report.Failed -or $report.Failed -ne 0) { throw 'Houve falha nas verificacoes de logica.' }
+          Write-Output ($report | ConvertTo-Json -Depth 6)

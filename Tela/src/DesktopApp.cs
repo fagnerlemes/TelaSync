@@ -70,7 +70,7 @@ namespace Tela {
    Btn("ThemeButton").Content=dark?"Tema claro":"Tema escuro";
   }
 
-  void ShowPage(string name){page=name;if(name=="Preferências")RefreshStartup();Render();}
+  void ShowPage(string name){page=name;if(name=="Preferências"){RefreshStartup();RefreshClosePreference();}Render();}
   void Render() {
    if(!service.State.Remembered.Any(d=>Native.Same(d.Key,selected)))selected=service.State.Remembered.First().Key;
    Ctrl<TextBlock>("PageTitle").Text=page=="Telas"?"Monitores":page;
@@ -151,9 +151,10 @@ namespace Tela {
     Exception failure=null;
     try {
      guard=await Task.Run(()=>new RecoveryGuard(service.Store.DirectoryPath,change.Before.Image()));
-     Say("Aplicando layout temporário…");Native.Check(await Task.Run(()=>Native.Configure(change.Proposed,false,false)),"Não foi possível aplicar o layout");
+     Say(change.RequireConfirmation?"Aplicando layout temporário…":"Aplicando e salvando o modo solicitado…");Native.Check(await Task.Run(()=>Native.Configure(change.Proposed,false,false)),"Não foi possível aplicar o layout");
      var actual=await Task.Run(()=>Native.Capture(false));if(LayoutPlanner.Fingerprint(actual.Active)!=LayoutPlanner.Fingerprint(change.Desired))throw new InvalidOperationException("O driver não manteve as posições solicitadas. A configuração anterior será restaurada.");
-     KeepWindowVisible(actual.Active);var confirm=new ConfirmationWindow();confirm.Owner=Window;bool keep=confirm.ShowDialog()==true;
+     KeepWindowVisible(actual.Active);bool keep=true;
+     if(change.RequireConfirmation){var confirm=new ConfirmationWindow();confirm.Owner=Window;keep=confirm.ShowDialog()==true;}
      if(keep){await Task.Run(()=>guard.Commit(()=>{Native.Check(Native.Configure(change.Proposed,false,true),"Não foi possível salvar o layout no Windows");service.Accept(change);}));accepted=true;bool edited=layoutDraft!=null;layoutDraft=null;Say(successMessage??(edited?"Nova disposição confirmada e salva na memória de posição.":"Layout confirmado. A memória original das posições foi preservada."));}
      else {await Task.Run(()=>guard.Revert());Say("A configuração anterior foi solicitada. Nenhuma nova posição foi registrada.");}
     }catch(Exception e){failure=e;}
@@ -182,7 +183,7 @@ namespace Tela {
   IntPtr Hook(IntPtr hwnd,int msg,IntPtr w,IntPtr l,ref bool handled) {
    if((uint)msg==NativeTheme.ShowMessage){ShowMainWindow();handled=true;}
    if(msg==0x7e&&refreshTimer!=null){refreshTimer.Stop();refreshTimer.Start();}
-   if(msg==0x312&&!busy){handled=true;if(layoutDraft!=null){Say("Aplique ou cancele a edição de disposição antes de usar esse atalho.");return IntPtr.Zero;}Window.Dispatcher.BeginInvoke(new Action(async()=>{if(w.ToInt32()==1)await Power("sleep");if(w.ToInt32()==2)await Power("wake");if(w.ToInt32()==3)await Toggle();}));}
+   if(msg==0x312&&!busy){handled=true;if(service.State.BeforeTv!=null){Say("Modo TV ativo. Use Voltar ao normal no aplicativo para restaurar suas telas.");return IntPtr.Zero;}if(layoutDraft!=null){Say("Aplique ou cancele a edição de disposição antes de usar esse atalho.");return IntPtr.Zero;}Window.Dispatcher.BeginInvoke(new Action(async()=>{if(w.ToInt32()==1)await Power("sleep");if(w.ToInt32()==2)await Power("wake");if(w.ToInt32()==3)await Toggle();}));}
    return IntPtr.Zero;
   }
   void Detach(){blanking.Dispose();if(tray!=null){tray.Dispose();tray=null;}if(source!=null){for(int i=1;i<=3;i++)Native.UnregisterHotKey(source.Handle,i);source.RemoveHook(Hook);}if(refreshTimer!=null)refreshTimer.Stop();}
@@ -204,6 +205,9 @@ namespace Tela {
   }
   public void PreviewTheme(bool dark){service.State.DarkTheme=dark;Theme();Render();}
   public void PreviewPage(string name){if(name=="editor")Btn("EditLayoutButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));else if(name=="settings")ShowPage("Preferências");}
+  public void RenderClosePreview(string output){
+   var dialog=new CloseChoiceWindow(null,service.State.DarkTheme);var panel=(FrameworkElement)dialog.Content;dialog.Content=null;TextElement.SetForeground(panel,B("Ink"));TextElement.SetFontFamily(panel,Window.FontFamily);var root=new Border{Width=600,Height=270,Background=B("Panel"),Child=panel};root.Measure(new Size(600,270));root.Arrange(new Rect(0,0,600,270));root.UpdateLayout();var bitmap=new RenderTargetBitmap(600,270,96,96,PixelFormats.Pbgra32);bitmap.Render(root);var png=new PngBitmapEncoder();png.Frames.Add(BitmapFrame.Create(bitmap));using(var file=File.Create(output))png.Save(file);dialog.Close();
+  }
   public void RenderPreview(string output,int width=1380,int height=1200) {
    var root=Ctrl<Grid>("RootView");Window.Content=null;TextElement.SetForeground(root,B("Ink"));TextElement.SetFontFamily(root,Window.FontFamily);root.Margin=new Thickness(0);root.Width=width;root.Height=height;root.Measure(new Size(width,height));root.Arrange(new Rect(0,0,width,height));root.UpdateLayout();RenderMap();root.UpdateLayout();
    var image=new RenderTargetBitmap(width,height,96,96,PixelFormats.Pbgra32);image.Render(root);var png=new PngBitmapEncoder();png.Frames.Add(BitmapFrame.Create(image));using(var stream=File.Create(output))png.Save(stream);
@@ -224,18 +228,21 @@ namespace Tela {
    Btn("AtalhosNav").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(Ctrl<FrameworkElement>("ShortcutsPage").Visibility==Visibility.Visible,"shortcuts navigation");
    Btn("TelasNav").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(Ctrl<FrameworkElement>("MonitorsPage").Visibility==Visibility.Visible,"return to monitors");
    Btn("SettingsNav").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(Ctrl<FrameworkElement>("SettingsPage").Visibility==Visibility.Visible,"startup and tray preferences navigation");Btn("TelasNav").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+   bool originalAsk=service.State.AskBeforeClose;var originalClose=service.State.RememberedCloseChoice;service.State.RememberedCloseChoice=CloseChoice.Tray;service.State.AskBeforeClose=true;RefreshClosePreference();Ctrl<CheckBox>("AskCloseCheck").IsChecked=false;check(ClosePolicy.Action(service.State)==CloseChoice.Tray&&Ctrl<TextBlock>("CloseBehaviorStatus").Text.Contains("bandeja"),"preferences can minimize to the tray without a question");Ctrl<CheckBox>("AskCloseCheck").IsChecked=true;check(ClosePolicy.Action(service.State)==CloseChoice.Cancel,"preferences can re-enable the close question");service.State.AskBeforeClose=originalAsk;service.State.RememberedCloseChoice=originalClose;service.Store.Save(service.State);RefreshClosePreference();
+   var closeDialog=new CloseChoiceWindow(null,service.State.DarkTheme);check(!closeDialog.RememberChoice,"close dialog starts without silently remembering a choice");closeDialog.RememberCheck.IsChecked=true;check(closeDialog.RememberChoice&&closeDialog.RememberCheck.Content.ToString()=="Memorizar minha escolha","close dialog exposes an accessible remember-choice checkbox");closeDialog.Close();
    string saved=LayoutPlanner.Fingerprint(service.State.Remembered);Btn("EditLayoutButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(layoutDraft!=null&&Ctrl<StackPanel>("LayoutControls").Visibility==Visibility.Visible,"layout editor opens without changing hardware");
    int number=layoutDraft.Find(selected).Number;Ctrl<TextBox>("XPositionInput").Text=(layoutDraft.Displays.Max(d=>d.Right)+100).ToString();Ctrl<TextBox>("YPositionInput").Text=(layoutDraft.Displays.Max(d=>d.Bottom)+100).ToString();Ctrl<TextBox>("NumberInput").Text=number.ToString();Btn("SetPositionButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(layoutDraft.Find(selected).X!=service.State.Remembered.First(d=>Native.Same(d.Key,selected)).X,"coordinate controls update the draft");
    uint rotationBefore=Native.U32(Convert.FromBase64String(layoutDraft.Find(selected).PathData),40);Btn("RotateRightButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(Native.U32(Convert.FromBase64String(layoutDraft.Find(selected).PathData),40)!=rotationBefore&&Ctrl<TextBlock>("OrientationValue").Text.Contains("°"),"rotation control updates map draft and orientation label");Btn("RotateLeftButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(Native.U32(Convert.FromBase64String(layoutDraft.Find(selected).PathData),40)==rotationBefore,"opposite rotation control returns the draft orientation");
    Btn("CancelLayoutButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));check(layoutDraft==null&&LayoutPlanner.Fingerprint(service.State.Remembered)==saved,"cancelling layout preserves saved arrangement");
    check(Ctrl<ComboBox>("TvPicker").Items.Count==service.State.Remembered.Count,"TV preference lists every remembered display");
    check(Btn("SetPrimaryDirectButton").Content.ToString()=="Principal"&&!Btn("SetPrimaryDirectButton").IsEnabled,"direct primary control identifies the current primary without entering the editor");
-   if(service.State.TvKey!=null&&service.State.BeforeTv==null){var originalState=service.State;var activeList=service.Current.Active;service.State=TvModePlan.Start(originalState,activeList,originalState.TvKey);service.Current.Active=LayoutPlanner.Plan(service.State.Remembered,new[]{originalState.TvKey},originalState.TvKey);selected=originalState.TvKey;Render();check(Btn("RestoreWorkspaceButton").Visibility==Visibility.Visible&&Btn("RestoreWorkspaceButton").IsEnabled&&!Btn("TvModeButton").IsEnabled,"TV-only view offers return and protects the original backup from being replaced");service.State=originalState;service.Current.Active=activeList;selected=active.Key;Render();}
+   if(service.State.TvKey!=null&&service.State.BeforeTv==null){var originalState=service.State;var activeList=service.Current.Active;service.State=TvModePlan.Start(originalState,activeList,originalState.TvKey);service.Current.Active=LayoutPlanner.Plan(service.State.Remembered,new[]{originalState.TvKey},originalState.TvKey);selected=originalState.TvKey;Render();check(Btn("RestoreWorkspaceButton").Visibility==Visibility.Visible&&Btn("RestoreWorkspaceButton").IsEnabled&&!Btn("TvModeButton").IsEnabled,"TV-only view offers return and protects the original backup from being replaced");check(Btn("RestoreWorkspaceButton").Content.ToString()=="Voltar ao normal"&&!Btn("ToggleButton").IsEnabled&&!Btn("EditLayoutButton").IsEnabled&&!Btn("ApplyProfileButton").IsEnabled,"TV mode exposes explicit return and blocks accidental layout changes");service.State=originalState;service.Current.Active=activeList;selected=active.Key;Render();}
    check(Ctrl<TextBlock>("SelectedStatus").Text.IndexOf("Tela preta",StringComparison.Ordinal)<0&&blanking.Count==0,"UI tests never cover the user monitors");
    if(service.Current.Active.Count>1){var activeList=service.Current.Active;var known=service.KnownBindings;service.Current.Active=activeList.Where(d=>!Native.Same(d.Key,selected)).ToList();service.KnownBindings=known.Where(b=>!Native.Same(b.Key,selected)).ToList();Render();check(!Btn("ToggleButton").IsEnabled&&Ctrl<TextBlock>("SelectedStatus").Text.StartsWith("Sem conexão"),"physically unavailable display is not offered as a disabled output");service.KnownBindings=known;Render();check(Btn("ToggleButton").IsEnabled,"connected disabled output can be reactivated");service.Current.Active=activeList;Render();}
    check(!Ctrl<Slider>("BrightnessSlider").IsEnabled&&!Btn("ApplyBrightnessButton").IsEnabled,"brightness writes blocked until a per-monitor read succeeds");
    Ctrl<ComboBox>("ProfilePicker").ApplyTemplate();var field=(TextBox)Ctrl<ComboBox>("ProfilePicker").Template.FindName("PART_EditableTextBox",Ctrl<ComboBox>("ProfilePicker"));check(field!=null&&((SolidColorBrush)field.Background).Color==((SolidColorBrush)B("Panel")).Color,"editable profile field follows the active theme");
    new WindowInteropHelper(Window).EnsureHandle();NativeTheme.Apply(Window,service.State.DarkTheme);int nativeDark=NativeTheme.ReadDark(Window),caption=NativeTheme.ReadCaption(Window);check(nativeDark<0||nativeDark==(service.State.DarkTheme?1:0),"native title bar follows the chosen theme when supported");
+   bool cancelledClose=false;System.ComponentModel.CancelEventHandler closingCheck=(s,e)=>{cancelledClose=e.Cancel;};Window.Closing+=closingCheck;bool wasPreview=preview;var savedClose=service.State.RememberedCloseChoice;bool savedAsk=service.State.AskBeforeClose;try{service.State.AskBeforeClose=false;service.State.RememberedCloseChoice=CloseChoice.Tray;preview=false;Window.Close();check(cancelledClose&&!Window.IsVisible,"remembered tray choice handles the real close event without opening a question");}finally{preview=wasPreview;service.State.AskBeforeClose=savedAsk;service.State.RememberedCloseChoice=savedClose;Window.Closing-=closingCheck;RefreshClosePreference();}
    if(caption>=0){var color=((SolidColorBrush)B("Panel")).Color;check(caption==(color.R|(color.G<<8)|(color.B<<16)),"Windows 11 caption uses the panel color");}
    using(var testTray=new TrayController(()=>{},()=>{},false)){testTray.Theme(service.State.DarkTheme);check(!testTray.Visible&&testTray.MenuItems==3,"tray icon has open and quit actions and disposes without a visible test icon");}
    Ctrl<TextBlock>("Feedback").Visibility=Visibility.Collapsed;var root=Ctrl<Grid>("RootView");root.Measure(new Size(1380,1200));root.Arrange(new Rect(0,0,1380,1200));root.UpdateLayout();var primaryText=VisualText(Btn("EditLayoutButton"));check(primaryText!=null&&((SolidColorBrush)primaryText.Foreground).Color==((SolidColorBrush)B("PrimaryInk")).Color,"primary button text uses its own high-contrast foreground");
@@ -254,3 +261,4 @@ namespace Tela {
   }
  }
 }
+

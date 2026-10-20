@@ -54,13 +54,22 @@ namespace Tela {
    Window.StateChanged+=(s,e)=>{Btn("WindowMaximizeButton").Content=Window.WindowState==WindowState.Maximized?"\uE923":"\uE922";};
    Btn("SettingsNav").Click+=(s,e)=>ShowPage("Preferências");
    Ctrl<CheckBox>("StartupCheck").Checked+=(s,e)=>Startup(true);Ctrl<CheckBox>("StartupCheck").Unchecked+=(s,e)=>Startup(false);
-   RefreshStartup();
+   Ctrl<CheckBox>("AskCloseCheck").Checked+=(s,e)=>SetAskBeforeClose(true);Ctrl<CheckBox>("AskCloseCheck").Unchecked+=(s,e)=>SetAskBeforeClose(false);
+   RefreshStartup();RefreshClosePreference();
    Window.Closing+=(s,e)=>{
     if(preview||forceExit)return;e.Cancel=true;if(closingPrompt)return;
     if(busy){Say("Aguarde a operação atual antes de fechar o programa.");return;}
-    closingPrompt=true;try{var dialog=new CloseChoiceWindow(Window,service.State.DarkTheme);dialog.ShowDialog();if(dialog.Choice==CloseChoice.Tray)Window.Hide();else if(dialog.Choice==CloseChoice.Exit){forceExit=true;e.Cancel=false;}}finally{closingPrompt=false;}
+    closingPrompt=true;try{
+     var choice=ClosePolicy.Action(service.State);
+     if(choice==CloseChoice.Cancel){var dialog=new CloseChoiceWindow(Window,service.State.DarkTheme);dialog.ShowDialog();choice=dialog.Choice;if(dialog.RememberChoice&&choice!=CloseChoice.Cancel){ClosePolicy.Remember(service.State,choice,true);service.Store.Save(service.State);RefreshClosePreference();}}
+     if(choice==CloseChoice.Tray)Window.Hide();else if(choice==CloseChoice.Exit){forceExit=true;e.Cancel=false;}
+    }catch(Exception ex){Error(ex);}finally{closingPrompt=false;}
    };
   }
+  void RefreshClosePreference(){
+   updating=true;try{Ctrl<CheckBox>("AskCloseCheck").IsChecked=service.State.AskBeforeClose;Ctrl<TextBlock>("CloseBehaviorStatus").Text=service.State.AskBeforeClose?"O X perguntará se deseja minimizar para a bandeja ou fechar o programa.":ClosePolicy.Action(service.State)==CloseChoice.Tray?"O X minimizará para a bandeja. Para encerrar, use Sair no menu do ícone.":"O X encerrará o programa. Marque esta opção para voltar a perguntar.";}finally{updating=false;}
+  }
+  void SetAskBeforeClose(bool value){if(updating)return;service.State.AskBeforeClose=value;service.Store.Save(service.State);RefreshClosePreference();}
   void RefreshStartup(){
    try{updating=true;string current=new WindowsStartupStore().Read();bool owned=StartupPolicy.IsOwned(current);Ctrl<CheckBox>("StartupCheck").IsChecked=owned;Ctrl<TextBlock>("StartupStatus").Text=owned?"Inicialização automática ativada para este usuário.":"Inicialização automática desativada.";}catch(Exception ex){Ctrl<TextBlock>("StartupStatus").Text="Não foi possível consultar a inicialização: "+ex.Message;}finally{updating=false;}
   }
